@@ -1,0 +1,80 @@
+[
+    {
+        "code": "BM",
+        "label": "Bloquear Mac",
+        "type": "shell",
+        "value": "pmset displaysleepnow"
+    },
+    {
+        "code": "AD",
+        "label": "Abrir Downloads",
+        "type": "folder",
+        "value": "~/Downloads"
+    },
+    {
+        "code": "AM",
+        "label": "Abrir #Mariane",
+        "type": "folder",
+        "value": "/Volumes/Trabalhos/# MARIANE"
+    },
+    {
+        "code": "AT",
+        "label": "Abrir Terminal",
+        "type": "app",
+        "value": "Terminal"
+    },
+    {
+        "label": "Abrir Apps",
+        "code": "APP",
+        "type": "folder",
+        "value": "/Applications"
+    },
+    {
+        "code": "RE",
+        "label": "Restart App",
+        "type": "internal",
+        "value": "restart_last_app"
+    },
+    {
+        "code": "KILL",
+        "label": "Kill All",
+        "type": "shell",
+        "value": "bash ~/Documents/m87_terminal/scripts/kill_all.sh"
+    },
+    {
+        "code": "MIN",
+        "label": "Minimizar Tudo",
+        "type": "shell",
+        "value": "bash ~/Documents/m87_terminal/scripts/minimize_all.sh"
+    },
+    {
+        "code": "MP",
+        "label": "MUPI Print",
+        "type": "shortcut",
+        "value": "MUPI Print"
+    },
+    {
+        "code": "MR",
+        "label": "Morning Routine",
+        "type": "shortcut",
+        "value": "Morning Routine"
+    },
+    {
+        "code": "MU",
+        "label": "Montar Unidades",
+        "type": "shortcut",
+        "value": "Montar Unidades"
+    },
+    {
+        "code": "RR",
+        "label": "Reload Terminal",
+        "type": "internal",
+        "value": "reload"
+    },
+    {
+        "code": "CL",
+        "label": "Clean Desktop",
+        "type": "shell",
+        "value": "mkdir -p ~/.Trash && find ~/Desktop -mindepth 1 -maxdepth 1 -exec mv {} ~/.Trash/ \\; && osascript -e 'tell application \"Finder\" to empty trash'"
+    }
+]
