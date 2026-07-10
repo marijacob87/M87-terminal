@@ -36,6 +36,8 @@ from core.suggestion_engine import get_suggestions
 from ui.suggestions import SuggestionsBox
 from ui.terminal_input import TerminalInput
 from ui.widgets import CommandRow
+from core.pdf_info import analisar_pdf, resumo_pdf
+from ui.pdf_info_dialog import PdfInfoDialog
 
 
 PDF_ACTIONS = [
@@ -57,6 +59,7 @@ class M87Term(QMainWindow):
         self.current_columns = None
 
         self.current_pdf = None
+        self.current_pdf_info = None
 
         self.weather_temp = "--°C"
         self.status_data = {}
@@ -301,6 +304,7 @@ class M87Term(QMainWindow):
 
     def clear_context(self):
         self.current_pdf = None
+        self.current_pdf_info = None
         self.active_file_label.clear()
         self.active_file_label.hide()
         self.clear_suggestions()
@@ -393,11 +397,18 @@ class M87Term(QMainWindow):
 
     def handle_pdf_drop(self, path):
         self.current_pdf = path
+        self.current_pdf_info = None
 
-        file_name = os.path.basename(path)
+        try:
+            self.current_pdf_info = analisar_pdf(path)
+            texto = resumo_pdf(self.current_pdf_info)
+        except Exception as erro:
+            file_name = os.path.basename(path)
+            texto = f"PDF ativo:\n{file_name}\nNão consegui ler as informações."
+            print(f"ERRO AO LER PDF: {erro}")
 
         self.active_file_label.setWordWrap(True)
-        self.active_file_label.setText(f"PDF ativo:\n{file_name}")
+        self.active_file_label.setText(texto)
         self.active_file_label.show()
 
         self.input.blockSignals(True)
@@ -414,7 +425,18 @@ class M87Term(QMainWindow):
         action_value = action.get("value")
 
         if action_value == "info":
-            print(f"INFO PDF: {self.current_pdf}")
+            try:
+                info = self.current_pdf_info
+
+                if not info:
+                    info = analisar_pdf(self.current_pdf)
+                    self.current_pdf_info = info
+
+                dialog = PdfInfoDialog(info, self)
+                dialog.exec()
+
+            except Exception as erro:
+                print(f"ERRO INFO PDF: {erro}")
 
         elif action_value == "curvas":
             print(f"CURVAS PDF: {self.current_pdf}")

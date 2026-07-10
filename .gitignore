@@ -1,15 +1,29 @@
-__pycache__/
-*.pyc
-
+# Ambiente virtual
 .venv/
-.venvs/
+venv/
+env/
 
-.env
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
-.vscode/
+# Build e empacotamento
+build/
+dist/
+*.spec
 
-.idea/
+# Cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
+# Logs e temporários
 *.log
+*.tmp
+*.temp

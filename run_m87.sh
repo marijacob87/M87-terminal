@@ -1,4 +1,4 @@
 #!/bin/bash
-cd "$(dirname "$0")"
-source ~/.venvs/m87_terminal/bin/activate
-python main.py
+PROJECT="/Users/marianejacob/Library/Mobile Documents/com~apple~CloudDocs/Documents/m87_terminal"
+cd "$PROJECT" || exit 1
+exec "$PROJECT/.venv/bin/python" "$PROJECT/main.py"

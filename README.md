@@ -1,6 +1,20 @@
-cd ~/Documents/m87_terminal
-./run_m87.sh
+cd "/Users/.../m87_terminal"
+source .venv/bin/activate
+git pull
+code .
 
+----------------------------------
+Quando terminar de programar:
+git add .
+git commit -m "Descrição"
+git push
+
+----------------------------------
+No outro computador:
+cd "/Users/.../m87_terminal"
+source .venv/bin/activate
+git pull
+code .
 
 
 # M87 TERM
@@ -114,3 +128,110 @@ Executa uma ação interna do próprio M87 TERM, como reload.
     "type": "folder",
     "value": "~/Downloads"
 }
+
+
+---
+# CHANGELOG
+
+## ✅ Concluído
+
+### Interface
+- Terminal minimalista em PySide6
+- Janela sem moldura
+- Redimensionamento da janela
+- Posição e tamanho persistentes
+- Layout responsivo (1 ou 2 colunas)
+- Hover apenas sobre o texto dos comandos
+
+### Barra de status
+- Dia da semana
+- Data
+- Hora
+- Temperatura (Porto)
+- Bateria
+- RAM
+- CPU
+
+### Sistema de comandos
+- Carregamento via commands.json
+- Busca inteligente priorizando código
+- Sugestões automáticas
+- Navegação por teclado (↑ ↓ Enter)
+
+### Comandos
+- BM
+- MIN
+- KILL
+- RE
+
+### Contexto de PDF
+- Drag & Drop
+- PDF ativo
+- Nome do PDF exibido
+- Sugestões contextuais
+- ESC libera o contexto
+- Base preparada para múltiplos tipos de arquivos
+
+### Projeto
+- Repositório no GitHub
+- Sincronização entre MacBook e Mac Studio
+- Estrutura preparada para evolução por contexto
+
+---
+
+## 💡 Ideias
+
+### PDF
+- INFO
+- CURVAS
+- REDUZIR
+- RENOMEAR
+- Comparar PDFs
+- OCR
+
+### Imagem
+- OCR
+- QR Code
+- EAN-13
+- Conversão de formatos
+
+### Pasta
+- Criar estrutura
+- ZIP
+- Renomear
+- Abrir cliente
+
+### Illustrator
+- Curvas
+- Gerar PDF
+- Limpeza geral
+- Relatório de imagens
+
+### Utilidades
+- Histórico da área de transferência
+- Histórico de clientes
+- Histórico de PDFs
+- Histórico de pastas
+- Pesquisa rápida de arquivos
+- Snippets
+- Calculadora integrada
+
+### Pipelines
+- Saída para gráfica
+- Conferência
+- Cliente
+
+### IA
+- Comandos em linguagem natural
+- Sugestão automática de ações
+- Assistente integrado
+
+### Futuro
+- Contexto para imagens
+- Contexto para pastas
+- Contexto para Illustrator
+- Contexto para InDesign
+- Contexto para ZIP
+- Contexto para múltiplos arquivos
+- Macros
+- Plugins
