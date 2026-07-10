@@ -37,8 +37,6 @@ from core.suggestion_engine import get_suggestions
 from ui.suggestions import SuggestionsBox
 from ui.terminal_input import TerminalInput
 from ui.widgets import CommandRow
-from core.pdf_info import analisar_pdf, resumo_pdf
-from ui.pdf_info_dialog import PdfInfoDialog
 
 
 PDF_ACTIONS = [
@@ -417,15 +415,21 @@ class M87Term(QMainWindow):
             return
 
     def handle_pdf_drop(self, path):
+        from core.pdf_info import analisar_pdf, resumo_pdf
+
         self.current_pdf = path
         self.current_pdf_info = None
 
         try:
             self.current_pdf_info = analisar_pdf(path)
             texto = resumo_pdf(self.current_pdf_info)
+
         except Exception as erro:
             file_name = os.path.basename(path)
-            texto = f"PDF ativo:\n{file_name}\nNão consegui ler as informações."
+            texto = (
+                f"{file_name}\n"
+                "Não consegui ler as informações."
+            )
             print(f"ERRO AO LER PDF: {erro}")
 
         self.active_file_label.setWordWrap(True)
@@ -447,6 +451,9 @@ class M87Term(QMainWindow):
 
         if action_value == "info":
             try:
+                from core.pdf_info import analisar_pdf
+                from ui.pdf_info_dialog import PdfInfoDialog
+
                 info = self.current_pdf_info
 
                 if not info:
