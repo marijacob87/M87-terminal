@@ -3,19 +3,10 @@ import webbrowser
 from pathlib import Path
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
 def execute(command):
-    """
-    Executa um comando vindo do commands.json.
-
-    Tipos aceitos:
-    - shortcut
-    - folder
-    - app
-    - shell
-    - url
-    - internal
-    """
-
     command_type = command.get("type")
     value = command.get("value")
     code = command.get("code", "??")
@@ -99,6 +90,7 @@ def run_shell(command):
     result = subprocess.run(
         command,
         shell=True,
+        cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
     )

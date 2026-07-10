@@ -39,13 +39,13 @@
         "code": "KILL",
         "label": "Kill All",
         "type": "shell",
-        "value": "bash ~/Documents/m87_terminal/scripts/kill_all.sh"
+        "value": "bash scripts/kill_all.sh"
     },
     {
         "code": "MIN",
         "label": "Minimizar Tudo",
         "type": "shell",
-        "value": "bash ~/Documents/m87_terminal/scripts/minimize_all.sh"
+        "value": "bash scripts/minimize_all.sh"
     },
     {
         "code": "MP",
