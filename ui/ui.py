@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 
 import psutil
@@ -116,20 +117,40 @@ class M87Term(QMainWindow):
         self.title = QLabel(APP_TITLE)
         self.title.setObjectName("title")
 
+        self.code_button = QLabel("</>")
+        self.code_button.setObjectName("codeButton")
+        self.code_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.code_button.setToolTip("Abrir projeto no VS Code")
+        self.code_button.mousePressEvent = lambda event: self.open_project_in_vscode()
+
         self.minimize_button = QLabel("—")
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.minimize_button.setToolTip("Minimizar")
         self.minimize_button.mousePressEvent = lambda event: self.showMinimized()
 
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(0)
+        title_layout.setSpacing(2)
 
         title_layout.addWidget(self.title)
         title_layout.addStretch()
+        title_layout.addWidget(self.code_button)
         title_layout.addWidget(self.minimize_button)
 
         self.main_layout.addLayout(title_layout)
+
+    def open_project_in_vscode(self):
+        project_path = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )
+
+        try:
+            subprocess.Popen(
+                ["open", "-a", "Visual Studio Code", project_path]
+            )
+        except Exception as error:
+            print(f"ERRO AO ABRIR VS CODE: {error}")
 
     def build_status(self):
         self.status = QLabel("")

@@ -39,6 +39,16 @@ QWidget {
     font-size: 13px;
     padding: 0px 4px;
 }
+#codeButton {
+    color: rgba(114, 255, 66, 0.58);
+    font-size: 9px;
+    font-weight: 500;
+    padding: 0px 5px;
+}
+
+#codeButton:hover {
+    color: rgba(165, 255, 115, 1);
+}
 
 #minimizeButton:hover {
     color: rgba(165, 255, 115, 1);
