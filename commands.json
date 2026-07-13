@@ -24,6 +24,12 @@
         "value": "Terminal"
     },
     {
+        "code": "INT",
+        "label": "Intercalar PDF",
+        "type": "shell",
+        "value": "\".venv/bin/python3\" scripts/intercalar_pdf.py"
+    },
+    {
         "label": "Abrir Apps",
         "code": "APP",
         "type": "folder",

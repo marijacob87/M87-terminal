@@ -6,7 +6,7 @@ code .
 ----------------------------------
 Quando terminar de programar:
 git add .
-git commit -m "Descrição"
+git commit -m "Idição do comando INTERCALAR PDF"
 git push
 
 ----------------------------------

@@ -1,7 +1,7 @@
 APP_STYLE = """
 QWidget {
     font-family: "JetBrains Mono";
-    color: rgba(105, 220, 65, 0.92);
+    color: rgba(244, 189, 4, 1);
     font-size: 12px;
 }
 
@@ -12,42 +12,42 @@ QWidget {
 }
 
 #title {
-    color: rgba(114, 255, 66, 0.72);
+    color: rgba(244, 189, 4, 1);
     font-size: 9px;
-    font-weight: 400;
+    font-weight: 200;
     letter-spacing: 1px;
 }
 
 #status {
-    color: rgba(105, 220, 65, 0.88);
+    color: rgba(244, 189, 4, 1);
     font-size: 12px;
 }
 
 #divider {
-    color: rgba(114, 255, 66, 0.25);
+    color: rgba(244, 189, 4, 1);
     font-size: 6px;
 }
 
 #flag {
-    color: rgba(165, 255, 115, 1);
+    color: rgba(244, 189, 4, 1);
     font-size: 12px;
     font-weight: 700;
 }
 
 #minimizeButton {
-    color: rgba(114, 255, 66, 0.75);
+    color: rgba(244, 189, 4, 1);
     font-size: 13px;
     padding: 0px 4px;
 }
 #codeButton {
-    color: rgba(114, 255, 66, 0.58);
+    color: rgba(244, 189, 4, 1);
     font-size: 9px;
     font-weight: 500;
     padding: 0px 5px;
 }
 
 #codeButton:hover {
-    color: rgba(165, 255, 115, 1);
+    color: rgba(244, 189, 4, 1);
 }
 
 #minimizeButton:hover {
@@ -71,12 +71,12 @@ QWidget {
 }
 
 #suggestionItem {
-    color: rgba(105, 220, 65, 0.48);
+    color: rgba(244, 189, 4, 1);
     font-size: 12px;
 }
 
 QLabel#activeFileLabel {
-    color: rgba(255, 221, 40, 0.85);
+    color: rgba(244, 189, 4, 1);
     font-size: 11px;
     font-weight: 400;
     padding-top: 4px;
@@ -85,7 +85,7 @@ QLabel#activeFileLabel {
 }
 
 #suggestionSelected {
-    color: rgba(255, 221, 40, 0.95);
+    color: rgba(244, 189, 4, 1);
     font-size: 12px;
 }
 
