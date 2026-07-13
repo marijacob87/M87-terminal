@@ -44,7 +44,7 @@ class TerminalInput(QWidget):
 
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMinimumHeight(18)
-        self.setAcceptDrops(True)
+        self.setAcceptDrops(False)
         self.edit.setAcceptDrops(False)
 
     def eventFilter(self, obj, event):
@@ -128,36 +128,6 @@ class TerminalInput(QWidget):
 
         return ellipsis + visible
     
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            urls = event.mimeData().urls()
-
-            if urls:
-                path = urls[0].toLocalFile()
-
-                if path.lower().endswith(".pdf"):
-                    event.acceptProposedAction()
-                    return
-
-        event.ignore()
-
-
-    def dropEvent(self, event):
-        urls = event.mimeData().urls()
-
-        if not urls:
-            event.ignore()
-            return
-
-        path = urls[0].toLocalFile()
-
-        if path.lower().endswith(".pdf"):
-            self.fileDropped.emit(path)
-            event.acceptProposedAction()
-            return
-
-        event.ignore()
-
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.TextAntialiasing)
