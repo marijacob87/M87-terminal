@@ -6,7 +6,8 @@ import sys
 import psutil
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCursor
+from PySide6.QtGui import QCursor, QIcon
+from pathlib import Path
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
@@ -83,7 +84,14 @@ class M87Term(QMainWindow):
     # =========================
 
     def setup_window(self):
-        self.setWindowTitle("M87 TERM")
+        self.setWindowTitle("M87 TERMINAL")
+
+        project_root = Path(__file__).resolve().parent.parent
+        icon_path = project_root / "assets" / "m87_icon.png"
+
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAcceptDrops(True)
@@ -97,6 +105,7 @@ class M87Term(QMainWindow):
         central = QWidget()
         central.setObjectName("terminalBox")
         central.setAcceptDrops(True)
+        central.setAutoFillBackground(False)
 
         self.main_layout = QVBoxLayout(central)
         self.main_layout.setContentsMargins(14, 8, 14, 6)

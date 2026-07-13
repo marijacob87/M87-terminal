@@ -167,9 +167,9 @@ class TerminalInput(QWidget):
 
         metrics = QFontMetrics(font)
 
-        prompt_color = QColor(208, 147, 29, 242)
-        text_color = QColor(208, 147, 29, 255)
-        cursor_color = QColor(208, 147, 29, 230)
+        prompt_color = QColor(255, 196, 0, 242)
+        text_color = QColor(255, 196, 0, 255)
+        cursor_color = QColor(255, 196, 0, 230)
 
         baseline = metrics.ascent()
 
