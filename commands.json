@@ -81,6 +81,6 @@
         "code": "CL",
         "label": "Clean Desktop",
         "type": "shell",
-        "value": "mkdir -p ~/.Trash && find ~/Desktop -mindepth 1 -maxdepth 1 -exec mv {} ~/.Trash/ \\; && osascript -e 'tell application \"Finder\" to empty trash'"
+        "value": "bash scripts/clean_desktop.sh"
     }
 ]

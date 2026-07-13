@@ -6,7 +6,7 @@ code .
 ----------------------------------
 Quando terminar de programar:
 git add .
-git commit -m "Correção da alturada da janela"
+git commit -m "RENOMEAR FUNCIONANDO"
 git push
 
 ----------------------------------
