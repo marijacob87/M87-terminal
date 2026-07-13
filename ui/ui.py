@@ -2,12 +2,12 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import psutil
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCursor, QIcon
-from pathlib import Path
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
@@ -65,6 +65,13 @@ class M87Term(QMainWindow):
         self.status_data = {}
         self.last_real_app = None
 
+        # Altura usada quando nenhum PDF está carregado.
+        self.normal_height = APP_MIN_HEIGHT
+
+        # Impede que o redimensionamento automático altere
+        # o tamanho salvo pelo utilizador.
+        self.auto_resizing = False
+
         self.save_state_timer = QTimer(self)
         self.save_state_timer.setSingleShot(True)
         self.save_state_timer.timeout.connect(self.save_current_state)
@@ -78,6 +85,45 @@ class M87Term(QMainWindow):
         self.apply_style()
         self.rebuild_command_grid()
         self.start_timers()
+
+    # =========================
+    # ALTURA AUTOMÁTICA
+    # =========================
+
+    def ajustar_altura_ao_conteudo(self):
+        central = self.centralWidget()
+
+        if central is None:
+            return
+
+        layout = central.layout()
+
+        if layout is not None:
+            layout.activate()
+
+        altura_necessaria = central.sizeHint().height()
+        nova_altura = max(self.normal_height, altura_necessaria)
+
+        tela = self.screen()
+
+        if tela is not None:
+            area_disponivel = tela.availableGeometry()
+
+            # Mantém o topo no lugar e limita o crescimento
+            # à parte inferior visível do ecrã.
+            altura_maxima = area_disponivel.bottom() - self.y() - 12
+            nova_altura = min(nova_altura, altura_maxima)
+
+        nova_altura = max(APP_MIN_HEIGHT, nova_altura)
+
+        self.auto_resizing = True
+        self.resize(self.width(), nova_altura)
+        self.auto_resizing = False
+
+    def restaurar_altura_normal(self):
+        self.auto_resizing = True
+        self.resize(self.width(), self.normal_height)
+        self.auto_resizing = False
 
     # =========================
     # SETUP
@@ -98,7 +144,13 @@ class M87Term(QMainWindow):
         self.setMinimumSize(APP_MIN_WIDTH, APP_MIN_HEIGHT)
 
         state = load_window_state()
-        self.resize(state["width"], state["height"])
+
+        largura = max(APP_MIN_WIDTH, state["width"])
+        altura = max(APP_MIN_HEIGHT, state["height"])
+
+        self.normal_height = altura
+
+        self.resize(largura, altura)
         self.move(state["x"], state["y"])
 
     def build_ui(self):
@@ -128,13 +180,17 @@ class M87Term(QMainWindow):
         self.code_button.setObjectName("codeButton")
         self.code_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.code_button.setToolTip("Abrir projeto no VS Code")
-        self.code_button.mousePressEvent = lambda event: self.open_project_in_vscode()
+        self.code_button.mousePressEvent = (
+            lambda event: self.open_project_in_vscode()
+        )
 
         self.minimize_button = QLabel("—")
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.minimize_button.setToolTip("Minimizar")
-        self.minimize_button.mousePressEvent = lambda event: self.showMinimized()
+        self.minimize_button.mousePressEvent = (
+            lambda event: self.showMinimized()
+        )
 
         title_layout = QHBoxLayout()
         title_layout.setContentsMargins(0, 0, 0, 0)
@@ -200,15 +256,11 @@ class M87Term(QMainWindow):
         self.input.textChanged.connect(self.update_suggestions)
         self.input.arrowUpPressed.connect(self.move_suggestion_up)
         self.input.arrowDownPressed.connect(self.move_suggestion_down)
-
-        # Drop agora fica centralizado na janela inteira.
-        # Evita conflito entre input e janela.
-        # self.input.fileDropped.connect(self.handle_file_drop)
-
         self.input.escapePressed.connect(self.clear_context)
 
         self.active_file_label = QLabel("")
         self.active_file_label.setObjectName("activeFileLabel")
+        self.active_file_label.setWordWrap(True)
         self.active_file_label.hide()
 
         self.suggestions = SuggestionsBox()
@@ -305,6 +357,7 @@ class M87Term(QMainWindow):
             else:
                 self.clear_suggestions()
 
+            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
             return
 
         suggestions = get_suggestions(text, self.commands)
@@ -333,11 +386,19 @@ class M87Term(QMainWindow):
     def clear_context(self):
         self.current_pdf = None
         self.current_pdf_info = None
+
         self.active_file_label.clear()
         self.active_file_label.hide()
+
         self.clear_suggestions()
+
+        self.input.blockSignals(True)
         self.input.clear()
+        self.input.blockSignals(False)
+
         self.input.setFocus()
+
+        QTimer.singleShot(0, self.restaurar_altura_normal)
 
     def move_suggestion_up(self):
         self.suggestions.move_up()
@@ -401,9 +462,7 @@ class M87Term(QMainWindow):
             event.ignore()
             return
 
-        urls = event.mimeData().urls()
-
-        for url in urls:
+        for url in event.mimeData().urls():
             path = url.toLocalFile()
 
             if path:
@@ -421,7 +480,6 @@ class M87Term(QMainWindow):
 
         if path.lower().endswith(".pdf"):
             self.handle_pdf_drop(path)
-            return
 
     def handle_pdf_drop(self, path):
         from core.pdf_info import analisar_pdf, resumo_pdf
@@ -441,7 +499,6 @@ class M87Term(QMainWindow):
             )
             print(f"ERRO AO LER PDF: {erro}")
 
-        self.active_file_label.setWordWrap(True)
         self.active_file_label.setText(texto)
         self.active_file_label.show()
 
@@ -451,6 +508,10 @@ class M87Term(QMainWindow):
 
         self.suggestions.set_items(PDF_ACTIONS)
         self.input.setFocus()
+
+        # Executado somente depois que o Qt atualiza:
+        # informações do PDF + lista de ações.
+        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
 
     def execute_pdf_action(self, action):
         if not self.current_pdf:
@@ -486,6 +547,8 @@ class M87Term(QMainWindow):
 
         self.suggestions.set_items(PDF_ACTIONS)
         self.input.setFocus()
+
+        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
 
     # =========================
     # COMANDOS
@@ -569,6 +632,7 @@ class M87Term(QMainWindow):
         if columns == 1:
             for index, widget in enumerate(self.command_widgets):
                 self.commands_grid.addWidget(widget, index, 0)
+
         else:
             half = (len(self.command_widgets) + 1) // 2
 
@@ -581,7 +645,15 @@ class M87Term(QMainWindow):
     def resizeEvent(self, event):
         self.rebuild_command_grid()
         self.render_status()
-        self.schedule_state_save()
+
+        # Só considera a altura como "normal" quando nenhum
+        # PDF está carregado e o redimensionamento foi manual.
+        if not self.auto_resizing and not self.current_pdf:
+            self.normal_height = self.height()
+
+        if not self.auto_resizing:
+            self.schedule_state_save()
+
         super().resizeEvent(event)
 
     # =========================
@@ -594,11 +666,19 @@ class M87Term(QMainWindow):
     def save_current_state(self):
         geometry = self.geometry()
 
+        # Quando há PDF aberto, salva a altura normal.
+        # Assim o terminal não reabre gigante posteriormente.
+        altura_para_salvar = (
+            self.normal_height
+            if self.current_pdf
+            else geometry.height()
+        )
+
         save_window_state(
             geometry.x(),
             geometry.y(),
             geometry.width(),
-            geometry.height(),
+            altura_para_salvar,
         )
 
     # =========================
@@ -615,7 +695,10 @@ class M87Term(QMainWindow):
 
     def mouseMoveEvent(self, event):
         if self.drag_position and event.buttons() == Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self.drag_position)
+            self.move(
+                event.globalPosition().toPoint()
+                - self.drag_position
+            )
             self.schedule_state_save()
             event.accept()
 

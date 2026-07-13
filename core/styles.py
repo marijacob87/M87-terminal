@@ -76,7 +76,7 @@ QWidget {
 }
 
 QLabel#activeFileLabel {
-    color: #FFC400;
+    color: rgba(255,255,255,0.78);
     font-size: 11px;
     font-weight: 400;
     padding-top: 4px;
@@ -86,7 +86,7 @@ QLabel#activeFileLabel {
 
 #suggestionSelected {
     color: #FFC400;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 """

@@ -821,10 +821,11 @@ def resumo_pdf(info):
     )
 
     return (
-        f'{info.get("nome", "PDF")}\n'
-        f'{pages_text} • '
-        f'Trim: {info.get("medida_trim", "Não informado")} • '
-        f'{info.get("peso", "Não informado")}'
+        f'{info.get("nome", "PDF")}\n\n'
+        f'{pages_text} - '
+        f'{info.get("peso", "Não informado")}\n\n'
+        f'(Trim) {info.get("medida_trim", "Não informado")} \n'
+        
     )
 
 

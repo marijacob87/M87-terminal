@@ -96,10 +96,13 @@ def run_shell(command):
     )
 
     if result.returncode != 0:
-        print(result.stderr.strip())
+        print(f"[ERRO SHELL]\n{result.stderr.strip()}")
         return False
 
-    return True
+    if result.stdout.strip():
+        print(result.stdout.strip())
+
+    return Trueomde
 
 
 def open_url(url):
