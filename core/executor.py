@@ -2,6 +2,8 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
+from core.system_actions import kill_all_apps, minimize_all_apps
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -27,6 +29,9 @@ def execute(command):
 
         if command_type == "shell":
             return run_shell(value)
+
+        if command_type == "system":
+            return run_system_action(value)
 
         if command_type == "url":
             return open_url(value)
@@ -102,7 +107,18 @@ def run_shell(command):
     if result.stdout.strip():
         print(result.stdout.strip())
 
-    return Trueomde
+    return True
+
+
+def run_system_action(action):
+    if action == "kill_all":
+        return kill_all_apps()
+
+    if action == "minimize_all":
+        return minimize_all_apps()
+
+    print(f"[ERRO] Ação de sistema desconhecida: {action}")
+    return False
 
 
 def open_url(url):

@@ -68,14 +68,33 @@ class SuggestionsBox(QWidget):
     # =========================
 
     def format_item_text(self, item, prefix):
-        if "code" in item:
-            code = item.get("code", "")
-            label = item.get("label", "")
+        if isinstance(item, dict):
+            if item.get("type") == "application":
+                return (
+                    f"{prefix} "
+                    f"{item.get('name', 'Aplicativo')}"
+                )
 
-            if label:
-                return f"{prefix} {code}   {label}"
+            if item.get("type") in (
+                "anydesk_machine",
+                "anydesk_app",
+            ):
+                return (
+                    f"{prefix} "
+                    f"{item.get('name', 'AnyDesk')}"
+                )
 
-            return f"{prefix} {code}"
+            if "code" in item:
+                code = item.get("code", "")
+                label = item.get("label", "")
+
+                if label:
+                    return (
+                        f"{prefix} "
+                        f"{code}   {label}"
+                    )
+
+                return f"{prefix} {code}"
 
         return f"{prefix} {item.name}"
 

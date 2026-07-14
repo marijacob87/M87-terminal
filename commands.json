@@ -36,7 +36,13 @@
         "value": "/Applications"
     },
     {
-        "code": "RE",
+        "code": "ANY",
+        "label": "Abrir AnyDesk",
+        "type": "internal",
+        "value": "anydesk_menu"
+    },
+    {
+        "code": "RES",
         "label": "Restart App",
         "type": "internal",
         "value": "restart_last_app"
@@ -44,14 +50,14 @@
     {
         "code": "KILL",
         "label": "Kill All",
-        "type": "shell",
-        "value": "bash scripts/kill_all.sh"
+        "type": "system",
+        "value": "kill_all"
     },
     {
         "code": "MIN",
         "label": "Minimizar Tudo",
-        "type": "shell",
-        "value": "bash scripts/minimize_all.sh"
+        "type": "system",
+        "value": "minimize_all"
     },
     {
         "code": "MP",

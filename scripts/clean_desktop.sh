@@ -1,19 +1,19 @@
 #!/bin/bash
 
 DESKTOP="$HOME/Desktop"
+TRASH="$HOME/.Trash"
 
-# Move tudo do Desktop para a Lixeira pelo Finder
-osascript <<'APPLESCRIPT'
-tell application "Finder"
-    set desktopItems to every item of desktop
-    repeat with thisItem in desktopItems
-        delete thisItem
-    end repeat
+# Apaga tudo do Desktop diretamente.
+# Não passa pela Lixeira.
+find "$DESKTOP" \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -exec rm -rf -- {} +
 
-    delay 1
-
-    empty trash
-end tell
-APPLESCRIPT
+# Esvazia a Lixeira local.
+find "$TRASH" \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -exec rm -rf -- {} +
 
 exit 0

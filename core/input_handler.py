@@ -1,11 +1,8 @@
 from PySide6.QtCore import QTimer
 
+from core.app_search import open_application, search_applications
 from core.calculator import calculate, is_calculation
-from core.client_search import (
-    open_path,
-    search_fast_client,
-    finder_search,
-)
+from core.client_search import open_path, search_fast_client
 
 
 def show_temporary_placeholder(input_widget, message):
@@ -24,20 +21,28 @@ def handle_input_text(app, text):
         return
 
     # =========================
-    # //texto = busca no Finder
-    # Ex: //clube dos gestores
+    # //texto = busca aplicativo
+    # Ex: //illustrator
     # =========================
 
     if text.startswith("//"):
         query = text[2:].strip()
-        app.input.clear()
+        results = search_applications(query)
 
-        if query:
-            finder_search(query)
+        app.input.clear()
+        app.clear_suggestions()
+
+        if not query:
+            show_temporary_placeholder(
+                app.input,
+                "digite o nome do aplicativo"
+            )
+        elif results:
+            open_application(results[0])
         else:
             show_temporary_placeholder(
                 app.input,
-                "digite o que buscar"
+                "aplicativo não encontrado"
             )
 
         return

@@ -56,13 +56,13 @@ class CommandRow(QWidget):
 
             QLabel#commandCode {
                 color: rgba(244, 189, 4, 1);
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 400;
             }
 
             QLabel#commandLabel {
                 color: rgba(244, 189, 4, 0.72);
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 400;
             }
         """)
@@ -76,13 +76,13 @@ class CommandRow(QWidget):
 
             QLabel#commandCode {
                 color: rgb(255, 221, 40);
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 400;
             }
 
             QLabel#commandLabel {
                 color: rgb(255, 239, 150);
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 400;
             }
         """)

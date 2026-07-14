@@ -1,6 +1,12 @@
 import os
 import sys
 
+from core.anydesk import (
+    get_anydesk_suggestions,
+    open_anydesk_app,
+    open_anydesk_machine,
+)
+from core.app_search import open_application
 from core.app_tracker import restart_app
 from core.client_search import open_path
 from core.config import BREAKPOINT_WIDTH
@@ -11,11 +17,64 @@ from ui.constants import PDF_ACTIONS
 
 
 class CommandControllerMixin:
+    def _clear_input_silently(self):
+        """
+        Limpa o QLineEdit interno sem disparar textChanged.
+
+        Bloquear self.input não basta, porque TerminalInput é
+        apenas o QWidget exterior. O sinal vem de self.input.edit.
+        """
+        self.input.edit.blockSignals(True)
+        self.input.clear()
+        self.input.edit.blockSignals(False)
+
+    def _open_anydesk_menu(self, query=""):
+        self.anydesk_menu_active = True
+
+        self.suggestions.set_items(
+            get_anydesk_suggestions(query)
+        )
+
+        self.input.setFocus()
+
     def update_suggestions(self, text):
+        text = text.strip()
+        upper_text = text.upper()
+
         if self.current_pdf:
             suggestions = self.get_pdf_suggestions(text)
+
+        elif (
+            upper_text == "ANY"
+            or upper_text.startswith("ANY ")
+        ):
+            self.anydesk_menu_active = True
+
+            query = text[3:].strip()
+
+            suggestions = get_anydesk_suggestions(
+                query
+            )
+
         else:
-            suggestions = get_suggestions(text, self.commands)
+            # Quando o menu ANY já está aberto e o campo
+            # está vazio, não recria a lista de comandos.
+            if (
+                getattr(
+                    self,
+                    "anydesk_menu_active",
+                    False,
+                )
+                and not text
+            ):
+                return
+
+            self.anydesk_menu_active = False
+
+            suggestions = get_suggestions(
+                text,
+                self.commands,
+            )
 
         if suggestions:
             self.suggestions.set_items(suggestions)
@@ -24,7 +83,11 @@ class CommandControllerMixin:
 
         if self.current_pdf:
             from PySide6.QtCore import QTimer
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+
+            QTimer.singleShot(
+                0,
+                self.ajustar_altura_ao_conteudo,
+            )
 
     def clear_suggestions(self):
         self.suggestions.clear()
@@ -41,17 +104,37 @@ class CommandControllerMixin:
         if not selected:
             return False
 
-        self.input.blockSignals(True)
-        self.input.clear()
-        self.input.blockSignals(False)
+        # Guarda a seleção antes de limpar qualquer coisa.
+        self._clear_input_silently()
         self.clear_suggestions()
 
+        self.anydesk_menu_active = False
+
         if isinstance(selected, dict):
-            if selected.get("type") == "pdf_action":
+            selected_type = selected.get("type")
+
+            if selected_type == "pdf_action":
                 self.execute_pdf_action(selected)
                 return True
 
-            self.execute_command(selected.get("code", ""))
+            if selected_type == "application":
+                open_application(selected)
+                return True
+
+            if selected_type == "anydesk_machine":
+                open_anydesk_machine(
+                    selected.get("id", "")
+                )
+                return True
+
+            if selected_type == "anydesk_app":
+                open_anydesk_app()
+                return True
+
+            self.execute_command(
+                selected.get("code", "")
+            )
+
             return True
 
         open_path(selected)
@@ -60,16 +143,25 @@ class CommandControllerMixin:
     def execute_command(self, code):
         code = code.upper()
 
+        if code == "ANY":
+            self._clear_input_silently()
+            self._open_anydesk_menu()
+            return
+
         if code == "RE":
             if self.last_real_app:
                 restart_app(self.last_real_app)
+
             return
 
         command = next(
             (
                 item
                 for item in self.commands
-                if item.get("code", "").upper() == code
+                if item.get(
+                    "code",
+                    "",
+                ).upper() == code
             ),
             None,
         )
@@ -84,24 +176,54 @@ class CommandControllerMixin:
 
     def execute_from_input(self):
         text = self.input.text().strip()
+        upper_text = text.upper()
 
         if self.current_pdf:
             pdf_action = next(
                 (
                     item
                     for item in PDF_ACTIONS
-                    if item.get("code", "").upper() == text.upper()
+                    if item.get(
+                        "code",
+                        "",
+                    ).upper() == upper_text
                 ),
                 None,
             )
 
             if pdf_action:
-                self.input.blockSignals(True)
-                self.input.clear()
-                self.input.blockSignals(False)
+                self._clear_input_silently()
                 self.clear_suggestions()
                 self.execute_pdf_action(pdf_action)
                 return
+
+        # O texto ANY já transforma as sugestões na lista de máquinas.
+        # Portanto, o primeiro Enter deve executar imediatamente a máquina
+        # destacada, em vez de consumir um Enter apenas para abrir outro menu.
+        if (
+            upper_text == "ANY"
+            or upper_text.startswith("ANY ")
+            or (
+                getattr(
+                    self,
+                    "anydesk_menu_active",
+                    False,
+                )
+                and not text
+            )
+        ):
+            if self.execute_selected_suggestion():
+                return
+
+            # Fallback raro: mantém o menu disponível caso ainda não exista
+            # nenhuma sugestão pronta no instante do Enter.
+            self._clear_input_silently()
+            self._open_anydesk_menu(
+                text[3:].strip()
+                if upper_text.startswith("ANY")
+                else ""
+            )
+            return
 
         if self.execute_selected_suggestion():
             return
@@ -110,10 +232,18 @@ class CommandControllerMixin:
 
     def restart_app(self):
         self.save_current_state()
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+        os.execv(
+            sys.executable,
+            [sys.executable] + sys.argv,
+        )
 
     def rebuild_command_grid(self):
-        columns = 1 if self.width() < BREAKPOINT_WIDTH else 2
+        columns = (
+            1
+            if self.width() < BREAKPOINT_WIDTH
+            else 2
+        )
 
         if columns == self.current_columns:
             return
@@ -128,13 +258,34 @@ class CommandControllerMixin:
                 widget.setParent(None)
 
         if columns == 1:
-            for index, widget in enumerate(self.command_widgets):
-                self.commands_grid.addWidget(widget, index, 0)
+            for index, widget in enumerate(
+                self.command_widgets
+            ):
+                self.commands_grid.addWidget(
+                    widget,
+                    index,
+                    0,
+                )
+
             return
 
-        half = (len(self.command_widgets) + 1) // 2
+        half = (
+            len(self.command_widgets) + 1
+        ) // 2
 
-        for index, widget in enumerate(self.command_widgets):
+        for index, widget in enumerate(
+            self.command_widgets
+        ):
             column = 0 if index < half else 1
-            row = index if index < half else index - half
-            self.commands_grid.addWidget(widget, row, column)
+
+            row = (
+                index
+                if index < half
+                else index - half
+            )
+
+            self.commands_grid.addWidget(
+                widget,
+                row,
+                column,
+            )
