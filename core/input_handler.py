@@ -3,6 +3,7 @@ from PySide6.QtCore import QTimer
 from core.app_search import open_application, search_applications
 from core.calculator import calculate, is_calculation
 from core.client_search import open_path, search_fast_client
+from core.running_apps import close_running_application, search_running_applications
 
 
 def show_temporary_placeholder(input_widget, message):
@@ -18,6 +19,28 @@ def handle_input_text(app, text):
     text = text.strip()
 
     if not text:
+        return
+
+    # =========================
+    # #texto = busca app aberto e fecha
+    # Ex: #acr
+    # =========================
+
+    if text.startswith("#"):
+        query = text[1:].strip()
+        results = search_running_applications(query)
+
+        app.input.clear()
+        app.clear_suggestions()
+
+        if results:
+            close_running_application(results[0])
+        else:
+            show_temporary_placeholder(
+                app.input,
+                "aplicativo aberto não encontrado"
+            )
+
         return
 
     # =========================

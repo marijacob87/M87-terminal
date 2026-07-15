@@ -1,5 +1,6 @@
 from core.anydesk import get_anydesk_suggestions
 from core.app_search import search_applications
+from core.running_apps import search_running_applications
 
 
 def command_score(item, query):
@@ -37,6 +38,11 @@ def get_suggestions(query, commands):
     if upper_query == "ANY" or upper_query.startswith("ANY "):
         anydesk_query = query[3:].strip()
         return get_anydesk_suggestions(anydesk_query)
+
+    # #nome = aplicativos abertos no momento
+    if query.startswith("#"):
+        app_query = query[1:].strip()
+        return search_running_applications(app_query)
 
     # //nome = aplicativos instalados
     if query.startswith("//"):

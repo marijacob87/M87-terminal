@@ -2,7 +2,11 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
-from core.system_actions import kill_all_apps, minimize_all_apps
+from core.system_actions import (
+    clean_desktop_and_trash,
+    kill_all_apps,
+    minimize_all_apps,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -116,6 +120,9 @@ def run_system_action(action):
 
     if action == "minimize_all":
         return minimize_all_apps()
+
+    if action == "clean_desktop":
+        return clean_desktop_and_trash()
 
     print(f"[ERRO] Ação de sistema desconhecida: {action}")
     return False

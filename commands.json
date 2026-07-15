@@ -86,7 +86,7 @@
     {
         "code": "CL",
         "label": "Clean Desktop",
-        "type": "shell",
-        "value": "bash scripts/clean_desktop.sh"
+        "type": "system",
+        "value": "clean_desktop"
     }
 ]

@@ -715,9 +715,12 @@ def generate_preview_png(document):
 
     first_page = document[0]
 
+    # Gera a imagem em resolução maior.
+    # Depois ela é reduzida suavemente dentro da janela.
     pixmap = first_page.get_pixmap(
-        matrix=fitz.Matrix(0.45, 0.45),
+        matrix=fitz.Matrix(1.5, 1.5),
         alpha=False,
+        colorspace=fitz.csRGB,
     )
 
     return pixmap.tobytes("png")

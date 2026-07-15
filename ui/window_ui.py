@@ -146,6 +146,11 @@ class WindowUiMixin:
         self.input.arrowDownPressed.connect(self.move_suggestion_down)
         self.input.escapePressed.connect(self.clear_context)
 
+        self.session_result_label = QLabel("")
+        self.session_result_label.setObjectName("activeFileLabel")
+        self.session_result_label.setWordWrap(True)
+        self.session_result_label.hide()
+
         self.active_file_label = QLabel("")
         self.active_file_label.setObjectName("activeFileLabel")
         self.active_file_label.setWordWrap(True)
@@ -155,6 +160,7 @@ class WindowUiMixin:
         self.suggestions.clear()
 
         self.main_layout.addWidget(self.input)
+        self.main_layout.addWidget(self.session_result_label)
         self.main_layout.addWidget(self.active_file_label)
         self.main_layout.addWidget(self.suggestions)
 

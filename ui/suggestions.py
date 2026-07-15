@@ -69,7 +69,7 @@ class SuggestionsBox(QWidget):
 
     def format_item_text(self, item, prefix):
         if isinstance(item, dict):
-            if item.get("type") == "application":
+            if item.get("type") in ("application", "running_application"):
                 return (
                     f"{prefix} "
                     f"{item.get('name', 'Aplicativo')}"

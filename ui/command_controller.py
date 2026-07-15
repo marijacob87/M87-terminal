@@ -9,8 +9,10 @@ from core.anydesk import (
 from core.app_search import open_application
 from core.app_tracker import restart_app
 from core.client_search import open_path
+from core.running_apps import close_running_application
 from core.config import BREAKPOINT_WIDTH
 from core.executor import execute
+from core.system_actions import get_last_kill_report
 from core.input_handler import handle_input_text
 from core.suggestion_engine import get_suggestions
 from ui.constants import PDF_ACTIONS
@@ -121,6 +123,10 @@ class CommandControllerMixin:
                 open_application(selected)
                 return True
 
+            if selected_type == "running_application":
+                close_running_application(selected)
+                return True
+
             if selected_type == "anydesk_machine":
                 open_anydesk_machine(
                     selected.get("id", "")
@@ -169,10 +175,53 @@ class CommandControllerMixin:
         if not command:
             return
 
+        if code == "KILL":
+            from PySide6.QtWidgets import QApplication
+
+            self.session_result_label.setText("Encerrando sessão...")
+            self.session_result_label.show()
+            self.ajustar_altura_ao_conteudo()
+            QApplication.processEvents()
+
         result = execute(command)
+
+        if code == "KILL":
+            from PySide6.QtCore import QTimer
+
+            report = get_last_kill_report()
+            remaining = report.get("remaining", [])
+            closed = report.get("closed", 0)
+            total = report.get("total", 0)
+
+            lines = [
+                "Sessão encerrada",
+                f"Aplicativos: {closed}/{total} fechados",
+                f"Desktop: {'limpo' if report.get('desktop', False) else 'não concluído'}",
+                f"Lixeira: {'vazia' if report.get('trash', False) else 'não concluída'}",
+                f"Cache: {'limpo' if report.get('cache', False) else 'não concluído'}",
+                f"Memória: {'liberada' if report.get('memory', False) else 'não concluída'}",
+            ]
+
+            if remaining:
+                lines.append("Ainda abertos: " + ", ".join(remaining))
+
+            self.session_result_label.setText("\n".join(lines))
+            self.session_result_label.show()
+            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+            QTimer.singleShot(12000, self.clear_session_result)
 
         if result == "reload":
             self.restart_app()
+
+    def clear_session_result(self):
+        if not hasattr(self, "session_result_label"):
+            return
+
+        self.session_result_label.clear()
+        self.session_result_label.hide()
+
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.restaurar_altura_normal)
 
     def execute_from_input(self):
         text = self.input.text().strip()

@@ -1,12 +1,13 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -20,52 +21,51 @@ QDialog {
 
 QLabel {
     color: #E8E8E8;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 QLabel#label {
     color: #8E9198;
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 900;
-    letter-spacing: 1.1px;
-    margin-top: 7px;
+    letter-spacing: 1px;
+    margin-top: 4px;
 }
 
 QLabel#value {
     color: #E8E8E8;
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 600;
 }
 
 QLabel#previewCaption {
     color: #8E9198;
-    font-size: 12px;
+    font-size: 10px;
+}
+
+QLabel#sectionTitle {
+    color: #D0931D;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1.2px;
+    margin-bottom: 3px;
 }
 
 QLabel#warning {
     color: #D0931D;
     background: rgba(208, 147, 29, 0.10);
     border-left: 3px solid #D0931D;
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-size: 10px;
 }
 
 QFrame#line {
-    background: #272A30;
+    background: #D0931D;
     max-height: 1px;
     min-height: 1px;
-    margin-top: 12px;
-    margin-bottom: 8px;
-}
-
-QScrollArea {
-    border: none;
-    background: transparent;
-}
-
-QScrollArea > QWidget > QWidget {
-    background: transparent;
+    margin-top: 7px;
+    margin-bottom: 5px;
 }
 
 QPushButton {
@@ -73,12 +73,17 @@ QPushButton {
     color: #111318;
     border: none;
     border-radius: 8px;
-    padding: 8px 18px;
+    padding: 7px 18px;
+    font-size: 11px;
     font-weight: 900;
 }
 
 QPushButton:hover {
     background: #E0A735;
+}
+
+QPushButton:pressed {
+    background: #B8821A;
 }
 """
 
@@ -89,9 +94,14 @@ class PdfInfoDialog(QDialog):
 
         self.info = info or {}
 
+        self.settings = QSettings(
+        "M87Tools",
+        "M87Terminal",
+        )
+
         self.setWindowTitle("INFO PDF")
-        self.resize(920, 660)
-        self.setMinimumSize(760, 540)
+        self.resize(980, 600)
+        self.setMinimumSize(880, 540)
         self.setStyleSheet(DIALOG_STYLE)
 
         self.build_ui()
@@ -101,31 +111,45 @@ class PdfInfoDialog(QDialog):
     # ========================================================
 
     def build_ui(self):
-        root_layout = QHBoxLayout(self)
-        root_layout.setContentsMargins(24, 24, 24, 18)
-        root_layout.setSpacing(28)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(22, 18, 22, 16)
+        main_layout.setSpacing(10)
 
-        root_layout.addLayout(
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(24)
+
+        content_layout.addWidget(
             self.build_preview_column()
         )
 
-        root_layout.addWidget(
-            self.build_info_column(),
+        content_layout.addWidget(
+            self.build_information_area(),
             1,
         )
+
+        main_layout.addLayout(content_layout, 1)
+        main_layout.addLayout(self.build_button_row())
 
     # ========================================================
     # PREVIEW
     # ========================================================
 
     def build_preview_column(self):
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
+        wrapper = QWidget()
+        wrapper.setFixedWidth(300)
+
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignCenter)
-        self.preview_label.setMinimumWidth(320)
-        self.preview_label.setMinimumHeight(450)
+        self.preview_label.setMinimumSize(280, 390)
+        self.preview_label.setMaximumSize(280, 430)
+        self.preview_label.setSizePolicy(
+            QSizePolicy.Fixed,
+            QSizePolicy.Expanding,
+        )
 
         self.load_preview()
 
@@ -133,11 +157,15 @@ class PdfInfoDialog(QDialog):
         caption.setObjectName("previewCaption")
         caption.setAlignment(Qt.AlignCenter)
 
-        layout.addWidget(self.preview_label)
+        layout.addStretch()
+        layout.addWidget(
+            self.preview_label,
+            alignment=Qt.AlignCenter,
+        )
         layout.addWidget(caption)
         layout.addStretch()
 
-        return layout
+        return wrapper
 
     def load_preview(self):
         preview_png = self.info.get(
@@ -155,8 +183,8 @@ class PdfInfoDialog(QDialog):
             )
         ):
             scaled_pixmap = pixmap.scaled(
-                320,
-                450,
+                280,
+                410,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
@@ -171,45 +199,72 @@ class PdfInfoDialog(QDialog):
             )
 
     # ========================================================
-    # COLUNA DE INFORMAÇÕES
+    # ÁREA DE INFORMAÇÕES
     # ========================================================
 
-    def build_info_column(self):
+    def build_information_area(self):
         wrapper = QWidget()
 
-        wrapper_layout = QVBoxLayout(wrapper)
-        wrapper_layout.setContentsMargins(0, 0, 0, 0)
-        wrapper_layout.setSpacing(12)
+        layout = QHBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(26)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
+        left_column = self.build_left_column()
+        right_column = self.build_right_column()
 
-        content = QWidget()
+        layout.addWidget(left_column, 1)
+        layout.addWidget(right_column, 1)
 
-        info_layout = QVBoxLayout(content)
-        info_layout.setContentsMargins(0, 0, 8, 0)
-        info_layout.setSpacing(4)
+        return wrapper
 
-        self.add_file_information(info_layout)
-        self.add_separator(info_layout)
-        self.add_size_information(info_layout)
-        self.add_trim_warning(info_layout)
-        self.add_separator(info_layout)
-        self.add_color_information(info_layout)
+    def build_left_column(self):
+        wrapper = QWidget()
 
-        info_layout.addStretch()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
 
-        scroll_area.setWidget(content)
-
-        wrapper_layout.addWidget(scroll_area)
-        wrapper_layout.addLayout(
-            self.build_button_row()
+        self.add_section_title(
+            layout,
+            "ARQUIVO",
         )
+
+        self.add_file_information(layout)
+
+        self.add_separator(layout)
+
+        self.add_section_title(
+            layout,
+            "MEDIDAS",
+        )
+
+        self.add_size_information(layout)
+        self.add_trim_warning(layout)
+
+        layout.addStretch()
+
+        return wrapper
+
+    def build_right_column(self):
+        wrapper = QWidget()
+
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+
+        self.add_section_title(
+            layout,
+            "CORES E SEPARAÇÕES",
+        )
+
+        self.add_color_information(layout)
+
+        layout.addStretch()
 
         return wrapper
 
     # ========================================================
-    # BLOCOS DE CONTEÚDO
+    # INFORMAÇÕES DO ARQUIVO
     # ========================================================
 
     def add_file_information(self, layout):
@@ -255,6 +310,10 @@ class PdfInfoDialog(QDialog):
             self.get_value("paginas"),
         )
 
+    # ========================================================
+    # MEDIDAS
+    # ========================================================
+
     def add_size_information(self, layout):
         self.add_line(
             layout,
@@ -264,20 +323,8 @@ class PdfInfoDialog(QDialog):
 
         self.add_line(
             layout,
-            "Medida da marca de corte / Trim",
+            "Marca de corte / Trim",
             self.get_value("medida_trim"),
-        )
-
-        self.add_line(
-            layout,
-            "Medida do Bleed",
-            self.get_value("medida_bleed"),
-        )
-
-        self.add_line(
-            layout,
-            "Medida do Crop",
-            self.get_value("medida_crop"),
         )
 
         crop_marks_text = (
@@ -299,22 +346,28 @@ class PdfInfoDialog(QDialog):
         self.add_warning(
             layout,
             "TrimBox não definido. "
-            "Usando MediaBox como referência.",
+            "MediaBox usada como referência.",
         )
+
+    # ========================================================
+    # CORES E SEPARAÇÕES
+    # ========================================================
 
     def add_color_information(self, layout):
         colors = self.info.get("cores", {})
 
         separation_lines = []
 
-        for label, key in [
+        color_items = [
             ("Ciano", "C"),
             ("Magenta", "M"),
             ("Amarelo", "Y"),
             ("Preto", "K"),
             ("RGB", "RGB"),
             ("Escala de cinza", "GRAY"),
-        ]:
+        ]
+
+        for label, key in color_items:
             mark = (
                 "✓"
                 if colors.get(key)
@@ -322,15 +375,19 @@ class PdfInfoDialog(QDialog):
             )
 
             separation_lines.append(
-                f"{mark} {label}"
+                f"{mark}  {label}"
             )
 
         spots = colors.get("SPOTS", [])
 
-        special_mark = "✓" if spots else "□"
+        special_mark = (
+            "✓"
+            if spots
+            else "□"
+        )
 
         separation_lines.append(
-            f"{special_mark} Pantones / especiais"
+            f"{special_mark}  Pantones / especiais"
         )
 
         self.add_line(
@@ -338,6 +395,8 @@ class PdfInfoDialog(QDialog):
             "Separações detectadas",
             "\n".join(separation_lines),
         )
+
+        self.add_separator(layout)
 
         self.add_line(
             layout,
@@ -353,6 +412,12 @@ class PdfInfoDialog(QDialog):
     # COMPONENTES
     # ========================================================
 
+    def add_section_title(self, layout, text):
+        title = QLabel(str(text))
+        title.setObjectName("sectionTitle")
+
+        layout.addWidget(title)
+
     def add_line(self, layout, label, value):
         label_widget = QLabel(str(label))
         label_widget.setObjectName("label")
@@ -360,6 +425,9 @@ class PdfInfoDialog(QDialog):
         value_widget = QLabel(str(value))
         value_widget.setObjectName("value")
         value_widget.setWordWrap(True)
+        value_widget.setTextInteractionFlags(
+            Qt.TextSelectableByMouse
+        )
 
         layout.addWidget(label_widget)
         layout.addWidget(value_widget)
@@ -372,7 +440,7 @@ class PdfInfoDialog(QDialog):
         layout.addWidget(line)
 
     def add_warning(self, layout, text):
-        warning = QLabel(f"⚠️ {text}")
+        warning = QLabel(f"⚠ {text}")
         warning.setObjectName("warning")
         warning.setWordWrap(True)
 
@@ -380,15 +448,88 @@ class PdfInfoDialog(QDialog):
 
     def build_button_row(self):
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+
         button_layout.addStretch()
 
         close_button = QPushButton("OK")
+        close_button.setFixedWidth(62)
         close_button.clicked.connect(self.accept)
 
         button_layout.addWidget(close_button)
 
         return button_layout
+    
+    # ========================================================
+    # POSIÇÃO E TAMANHO DA JANELA
+    # ========================================================
 
+    def showEvent(self, event):
+        super().showEvent(event)
+
+        saved_geometry = self.settings.value(
+            "pdf_info_dialog/geometry"
+        )
+
+        if saved_geometry:
+            self.restoreGeometry(saved_geometry)
+
+        self.ensure_window_is_visible()
+
+    def closeEvent(self, event):
+        self.settings.setValue(
+            "pdf_info_dialog/geometry",
+            self.saveGeometry(),
+        )
+
+        super().closeEvent(event)
+
+    def accept(self):
+        self.settings.setValue(
+            "pdf_info_dialog/geometry",
+            self.saveGeometry(),
+        )
+
+        super().accept()
+
+    def reject(self):
+        self.settings.setValue(
+            "pdf_info_dialog/geometry",
+            self.saveGeometry(),
+        )
+
+        super().reject()
+
+    def ensure_window_is_visible(self):
+        dialog_geometry = self.frameGeometry()
+
+        screens = QApplication.screens()
+
+        is_visible = any(
+            screen.availableGeometry().intersects(
+                dialog_geometry
+            )
+            for screen in screens
+        )
+
+        if is_visible:
+            return
+
+        screen = QApplication.primaryScreen()
+
+        if screen is None:
+            return
+
+        available_geometry = screen.availableGeometry()
+
+        corrected_geometry = self.frameGeometry()
+        corrected_geometry.moveCenter(
+            available_geometry.center()
+        )
+
+        self.move(corrected_geometry.topLeft())
+
+          
     # ========================================================
     # UTILITÁRIOS
     # ========================================================
