@@ -78,6 +78,12 @@
         "value": "Montar Unidades"
     },
     {
+        "code": "MON",
+        "label": "Calcular Montagem",
+        "type": "internal",
+        "value": "montagem"
+    },
+    {
         "code": "RR",
         "label": "Reload Terminal",
         "type": "internal",

@@ -160,6 +160,14 @@ class CommandControllerMixin:
 
             return
 
+        if code == "MON":
+            from ui.montagem_dialog import MontagemDialog
+
+            dialog = MontagemDialog(self)
+            dialog.exec()
+            self.input.setFocus()
+            return
+
         command = next(
             (
                 item
