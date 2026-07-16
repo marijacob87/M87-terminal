@@ -39,15 +39,20 @@ QWidget {
     font-size: 13px;
     padding: 0px 4px;
 }
-#codeButton {
+#codeButton, #reloadButton {
     color: #FFC400;
     font-size: 9px;
     font-weight: 500;
     padding: 0px 5px;
 }
 
-#codeButton:hover {
-    color: #FFC400;
+#reloadButton {
+    font-size: 13px;
+    padding: 0px 3px;
+}
+
+#codeButton:hover, #reloadButton:hover {
+    color: #A5FF73;
 }
 
 #minimizeButton:hover {

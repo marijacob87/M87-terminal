@@ -154,7 +154,7 @@ class CommandControllerMixin:
             self._open_anydesk_menu()
             return
 
-        if code == "RE":
+        if code in ("RE", "RES"):
             if self.last_real_app:
                 restart_app(self.last_real_app)
 
@@ -164,6 +164,14 @@ class CommandControllerMixin:
             from ui.montagem_dialog import MontagemDialog
 
             dialog = MontagemDialog(self)
+            dialog.exec()
+            self.input.setFocus()
+            return
+
+        if code == "BAR":
+            from ui.code_generator_dialog import CodeGeneratorDialog
+
+            dialog = CodeGeneratorDialog(self)
             dialog.exec()
             self.input.setFocus()
             return
@@ -314,35 +322,73 @@ class CommandControllerMixin:
             if widget:
                 widget.setParent(None)
 
+        section_order = ["Sistema", "Abrir", "Ferramentas"]
+
         if columns == 1:
-            for index, widget in enumerate(
-                self.command_widgets
-            ):
+            row_index = 0
+
+            for section in section_order:
+                widgets = self.command_sections.get(section, [])
+
+                if not widgets:
+                    continue
+
                 self.commands_grid.addWidget(
-                    widget,
-                    index,
+                    self.section_labels[section],
+                    row_index,
                     0,
                 )
+                row_index += 1
+
+                for widget in widgets:
+                    self.commands_grid.addWidget(
+                        widget,
+                        row_index,
+                        0,
+                    )
+                    row_index += 1
 
             return
 
-        half = (
-            len(self.command_widgets) + 1
-        ) // 2
+        left_row = 0
+        system_widgets = self.command_sections.get("Sistema", [])
 
-        for index, widget in enumerate(
-            self.command_widgets
-        ):
-            column = 0 if index < half else 1
-
-            row = (
-                index
-                if index < half
-                else index - half
+        if system_widgets:
+            self.commands_grid.addWidget(
+                self.section_labels["Sistema"],
+                left_row,
+                0,
             )
+            left_row += 1
+
+            for widget in system_widgets:
+                self.commands_grid.addWidget(
+                    widget,
+                    left_row,
+                    0,
+                )
+                left_row += 1
+
+        right_row = 0
+
+        for section in ["Abrir", "Ferramentas"]:
+            widgets = self.command_sections.get(section, [])
+
+            if not widgets:
+                continue
 
             self.commands_grid.addWidget(
-                widget,
-                row,
-                column,
+                self.section_labels[section],
+                right_row,
+                1,
             )
+            right_row += 1
+
+            for widget in widgets:
+                self.commands_grid.addWidget(
+                    widget,
+                    right_row,
+                    1,
+                )
+                right_row += 1
+

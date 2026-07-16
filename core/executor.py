@@ -124,6 +124,20 @@ def run_system_action(action):
     if action == "clean_desktop":
         return clean_desktop_and_trash()
 
+    if action == "shutdown":
+        ok = kill_all_apps()
+
+        subprocess.run(
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to shut down'
+            ],
+            check=False,
+        )
+
+        return ok
+
     print(f"[ERRO] Ação de sistema desconhecida: {action}")
     return False
 

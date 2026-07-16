@@ -102,3 +102,17 @@ class CommandRow(QWidget):
         self.flag.setText("✓")
         self.on_execute(self.code_text)
         QTimer.singleShot(900, lambda: self.flag.setText(""))
+
+class SectionLabel(QLabel):
+    def __init__(self, text):
+        super().__init__(text.upper())
+        self.setObjectName("sectionLabel")
+        self.setStyleSheet("""
+            QLabel#sectionLabel {
+                color: rgba(244, 189, 4, 0.48);
+                font-size: 9px;
+                font-weight: 500;
+                letter-spacing: 1px;
+                padding: 4px 2px 1px 2px;
+            }
+        """)

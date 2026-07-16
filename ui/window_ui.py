@@ -17,7 +17,7 @@ from core.config import APP_MIN_HEIGHT, APP_MIN_WIDTH, APP_TITLE
 from core.state import load_window_state
 from ui.suggestions import SuggestionsBox
 from ui.terminal_input import TerminalInput
-from ui.widgets import CommandRow
+from ui.widgets import CommandRow, SectionLabel
 
 
 class WindowUiMixin:
@@ -74,6 +74,14 @@ class WindowUiMixin:
             lambda event: self.open_project_in_vscode()
         )
 
+        self.reload_button = QLabel("↻")
+        self.reload_button.setObjectName("reloadButton")
+        self.reload_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.reload_button.setToolTip("Reload Terminal")
+        self.reload_button.mousePressEvent = (
+            lambda event: self.restart_app()
+        )
+
         self.minimize_button = QLabel("—")
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setCursor(QCursor(Qt.PointingHandCursor))
@@ -88,6 +96,7 @@ class WindowUiMixin:
         title_layout.addWidget(self.title)
         title_layout.addStretch()
         title_layout.addWidget(self.code_button)
+        title_layout.addWidget(self.reload_button)
         title_layout.addWidget(self.minimize_button)
 
         self.main_layout.addLayout(title_layout)
@@ -120,9 +129,13 @@ class WindowUiMixin:
         self.commands_grid.setHorizontalSpacing(6)
         self.commands_grid.setVerticalSpacing(0)
 
+        self.command_sections = {}
+        self.section_labels = {}
+
         for item in self.commands:
             code = item.get("code", "").upper()
             label = item.get("label", code)
+            section = item.get("section", "Comandos")
 
             if not code:
                 continue
@@ -130,6 +143,10 @@ class WindowUiMixin:
             row = CommandRow(label, code, self.execute_command)
             self.rows[code] = row
             self.command_widgets.append(row)
+            self.command_sections.setdefault(section, []).append(row)
+
+        for section in self.command_sections:
+            self.section_labels[section] = SectionLabel(section)
 
         self.main_layout.addLayout(self.commands_grid)
 
