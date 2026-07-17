@@ -39,6 +39,15 @@ def get_suggestions(query, commands):
         anydesk_query = query[3:].strip()
         return get_anydesk_suggestions(anydesk_query)
 
+    # Ferramentas internas de desenvolvimento não aparecem
+    # na lista visual de comandos.
+    lower_query = query.lower()
+    if (
+        lower_query in {"#zip", "#code", "#git"}
+        or lower_query.startswith("#git ")
+    ):
+        return []
+
     # #nome = aplicativos abertos no momento
     if query.startswith("#"):
         app_query = query[1:].strip()

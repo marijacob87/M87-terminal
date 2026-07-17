@@ -1,6 +1,53 @@
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QCursor
+from PySide6.QtCore import QTimer, Qt, QRectF
+from PySide6.QtGui import QColor, QCursor, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QLabel, QHBoxLayout, QWidget, QSizePolicy
+
+
+class MetallicRainbowLabel(QLabel):
+    """QLabel com gradiente arco-íris metálico para o título."""
+
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+    def _gradient(self, rect):
+        gradient = QLinearGradient(
+            rect.left(),
+            rect.center().y(),
+            rect.right(),
+            rect.center().y(),
+        )
+
+        stops = (
+            (0.00, "#FF4F55"),
+            (0.08, "#FF8A56"),
+            (0.16, "#FFD166"),
+            (0.23, "#FFF2A8"),
+            (0.32, "#54E38E"),
+            (0.40, "#B8FFD7"),
+            (0.50, "#36C5F0"),
+            (0.59, "#9EEBFF"),
+            (0.68, "#587BFF"),
+            (0.78, "#C06CFF"),
+            (0.87, "#F3B0FF"),
+            (1.00, "#FF4F91"),
+        )
+
+        for position, color in stops:
+            gradient.setColorAt(position, QColor(color))
+
+        return gradient
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.TextAntialiasing, True)
+
+        rect = QRectF(self.contentsRect())
+        painter.setFont(self.font())
+        painter.setPen(QPen(self._gradient(rect), 1))
+        painter.drawText(rect, int(self.alignment()), self.text())
 
 
 class CommandRow(QWidget):

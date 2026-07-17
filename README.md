@@ -6,7 +6,7 @@ code .
 ----------------------------------
 Quando terminar de programar:
 git add .
-git commit -m "ANY FUNCIONANDO MAIS OU MENOS"
+git commit -m "Nova organização e comando END"
 git push
 
 ----------------------------------

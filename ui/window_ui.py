@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizeGrip,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -17,7 +18,7 @@ from core.config import APP_MIN_HEIGHT, APP_MIN_WIDTH, APP_TITLE
 from core.state import load_window_state
 from ui.suggestions import SuggestionsBox
 from ui.terminal_input import TerminalInput
-from ui.widgets import CommandRow, SectionLabel
+from ui.widgets import CommandRow, MetallicRainbowLabel, SectionLabel
 
 
 class WindowUiMixin:
@@ -63,7 +64,7 @@ class WindowUiMixin:
         QTimer.singleShot(100, self.input.setFocus)
 
     def build_title(self):
-        self.title = QLabel(APP_TITLE)
+        self.title = MetallicRainbowLabel(APP_TITLE)
         self.title.setObjectName("title")
 
         self.code_button = QLabel("</>")
@@ -90,7 +91,14 @@ class WindowUiMixin:
             lambda event: self.showMinimized()
         )
 
-        title_layout = QHBoxLayout()
+        self.title_container = QWidget()
+        self.title_container.setObjectName("titleContainer")
+        self.title_container.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
+
+        title_layout = QHBoxLayout(self.title_container)
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(2)
         title_layout.addWidget(self.title)
@@ -99,7 +107,7 @@ class WindowUiMixin:
         title_layout.addWidget(self.reload_button)
         title_layout.addWidget(self.minimize_button)
 
-        self.main_layout.addLayout(title_layout)
+        self.main_layout.addWidget(self.title_container)
 
     def open_project_in_vscode(self):
         project_path = os.path.dirname(
@@ -114,14 +122,37 @@ class WindowUiMixin:
             print(f"ERRO AO ABRIR VS CODE: {error}")
 
     def build_status(self):
+        # O status pertence ao cabeçalho e não participa da distribuição
+        # vertical do restante da janela. Assim ele permanece colado ao
+        # título mesmo quando a altura do app é aumentada.
+        self.status_container = QWidget()
+        self.status_container.setObjectName("statusContainer")
+        self.status_container.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
+
+        status_layout = QVBoxLayout(self.status_container)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(2)
+
         self.status = QLabel("")
         self.status.setObjectName("status")
+        self.status.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
 
         self.divider_1 = QLabel("────────────────────────────────────")
         self.divider_1.setObjectName("divider")
+        self.divider_1.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
 
-        self.main_layout.addWidget(self.status)
-        self.main_layout.addWidget(self.divider_1)
+        status_layout.addWidget(self.status)
+        status_layout.addWidget(self.divider_1)
+        self.main_layout.addWidget(self.status_container)
 
     def build_commands(self):
         self.commands_grid = QGridLayout()
