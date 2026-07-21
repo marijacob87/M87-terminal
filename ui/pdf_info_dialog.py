@@ -286,12 +286,7 @@ class PdfInfoDialog(QDialog):
             self.get_value("orientacao"),
         )
 
-        self.add_line(
-            layout,
-            "Criado em",
-            self.get_value("criado_em"),
-        )
-
+    
         self.add_line(
             layout,
             "Data de criação",

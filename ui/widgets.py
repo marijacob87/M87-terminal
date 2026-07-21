@@ -13,10 +13,11 @@ from PySide6.QtWidgets import QLabel, QHBoxLayout, QWidget, QSizePolicy
 class DarkMetallicTitleBar(QWidget):
     """Barra superior escura com gradiente metálico e cantos arredondados."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, height=34, radius=12.0):
         super().__init__(parent)
+        self._corner_radius = float(radius)
         self.setObjectName("titleContainer")
-        self.setFixedHeight(34)
+        self.setFixedHeight(height)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
@@ -26,7 +27,7 @@ class DarkMetallicTitleBar(QWidget):
 
         rect = QRectF(self.rect())
         path = QPainterPath()
-        radius = 12.0
+        radius = self._corner_radius
         path.moveTo(rect.left(), rect.bottom())
         path.lineTo(rect.left(), rect.top() + radius)
         path.quadTo(rect.left(), rect.top(), rect.left() + radius, rect.top())

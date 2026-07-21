@@ -1,9 +1,11 @@
 import json
 import subprocess
+import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QSettings, QTimer
 from PySide6.QtGui import QCursor, QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QDialog,
@@ -14,10 +16,13 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizeGrip,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
+
+from ui.widgets import DarkMetallicTitleBar
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE_FILE = ROOT / "reference.json"
@@ -42,10 +47,15 @@ class ReferenceDialog(QDialog):
         self.sections = self.data.get("sections", [])
         self.active_section_id = "inicio"
         self.sidebar_buttons = {}
+        self.settings = QSettings("M87Tools", "M87Terminal")
+        self._geometry_save_timer = QTimer(self)
+        self._geometry_save_timer.setSingleShot(True)
+        self._geometry_save_timer.timeout.connect(self._save_geometry)
 
         self._setup_window()
         self._build_ui()
         self._apply_style()
+        self._restore_geometry()
         self.show_section("inicio")
 
     @staticmethod
@@ -77,22 +87,37 @@ class ReferenceDialog(QDialog):
         outer.addWidget(self.terminal_box)
 
         main = QVBoxLayout(self.terminal_box)
-        main.setContentsMargins(16, 10, 16, 12)
-        main.setSpacing(6)
+        main.setContentsMargins(0, 0, 0, 8)
+        main.setSpacing(4)
 
         self._build_title_bar(main)
-        self._build_header(main)
-        self._build_search(main)
-        self._build_body(main)
+
+        self.content_container = QWidget()
+        self.content_container.setObjectName("referenceContentContainer")
+        content = QVBoxLayout(self.content_container)
+        content.setContentsMargins(16, 5, 16, 4)
+        content.setSpacing(5)
+        main.addWidget(self.content_container, 1)
+
+        self._build_header(content)
+        self._build_search(content)
+        self._build_body(content)
+
+        grip_row = QHBoxLayout()
+        grip_row.setContentsMargins(0, 0, 2, 0)
+        grip_row.addStretch()
+        grip = QSizeGrip(self.terminal_box)
+        grip.setObjectName("referenceSizeGrip")
+        grip_row.addWidget(grip)
+        main.addLayout(grip_row)
 
     def _build_title_bar(self, parent_layout):
-        bar = QWidget()
+        bar = DarkMetallicTitleBar(height=28, radius=12)
         bar.setObjectName("referenceTitleBar")
-        bar.setFixedHeight(22)
 
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setContentsMargins(14, 0, 10, 0)
+        layout.setSpacing(0)
 
         title = QLabel("M87 TERMINAL · REFERENCE")
         title.setObjectName("referenceWindowTitle")
@@ -107,7 +132,6 @@ class ReferenceDialog(QDialog):
         layout.addWidget(close_button)
 
         parent_layout.addWidget(bar)
-        parent_layout.addWidget(self._divider())
 
     def _counts(self):
         commands = self._load_json(COMMANDS_FILE, [])
@@ -120,23 +144,12 @@ class ReferenceDialog(QDialog):
         product = self.data.get("product", {})
         visible, special, pdf_actions = self._counts()
 
-        name = QLabel(product.get("name", "M87 TERMINAL"))
-        name.setObjectName("referenceProduct")
-
-        version = QLabel(
-            f'{product.get("version", "v1.0.0")} · '
-            f'Criado em {product.get("created", "03 de julho de 2026")}'
-        )
-        version.setObjectName("referenceMeta")
-
         summary = QLabel(
             f"{visible} comandos  ·  {special} recursos especiais  ·  "
             f"{pdf_actions} ações PDF"
         )
         summary.setObjectName("referenceCounts")
 
-        parent_layout.addWidget(name)
-        parent_layout.addWidget(version)
         parent_layout.addWidget(summary)
 
     def _build_search(self, parent_layout):
@@ -184,7 +197,7 @@ class ReferenceDialog(QDialog):
 
         sidebar_layout.addStretch()
 
-        signature = QLabel("Built with Python + Qt\nby Mariane Jacob")
+        signature = QLabel("Versão 1.0.0\nBuilt with Python + Qt\non 03.07.2026\nby Mariane Jacob")
         signature.setObjectName("referenceSignature")
         sidebar_layout.addWidget(signature)
 
@@ -248,16 +261,10 @@ class ReferenceDialog(QDialog):
     def _render_section(self, section, items=None, search_title=None):
         self._clear_content()
 
-        heading = QLabel(search_title or section.get("title", "").upper())
-        heading.setObjectName("referenceHeading")
-        self.content_layout.addWidget(heading)
-
-        intro = section.get("intro", "")
-        if intro:
-            intro_label = QLabel(intro)
-            intro_label.setObjectName("referenceIntro")
-            intro_label.setWordWrap(True)
-            self.content_layout.addWidget(intro_label)
+        if search_title:
+            heading = QLabel(search_title)
+            heading.setObjectName("referenceHeading")
+            self.content_layout.addWidget(heading)
 
         if section.get("dynamic") == "git" and items is None:
             self._render_changelog()
@@ -325,9 +332,16 @@ class ReferenceDialog(QDialog):
                 for item in group.get("items", []):
                     yield section, item
 
+    @staticmethod
+    def _search_tokens(value):
+        normalized = unicodedata.normalize("NFKD", str(value).casefold())
+        normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        return re.findall(r"[a-z0-9]+", normalized)
+
     def _on_search(self, text):
-        query = text.strip().casefold()
-        if not query:
+        raw_query = text.strip()
+        query_tokens = self._search_tokens(raw_query)
+        if not query_tokens:
             section = next(
                 (s for s in self.sections if s.get("id") == self.active_section_id),
                 self.sections[0] if self.sections else {},
@@ -335,29 +349,42 @@ class ReferenceDialog(QDialog):
             self._render_section(section)
             return
 
-        results = []
+        ranked_results = []
         for section, item in self._all_items():
-            haystack = " ".join(
-                [
-                    item.get("code", ""),
-                    item.get("title", ""),
-                    item.get("description", ""),
-                    " ".join(item.get("keywords", [])),
-                    section.get("title", ""),
-                ]
-            ).casefold()
-            if query in haystack:
-                enriched = dict(item)
-                enriched["title"] = (
-                    f'{item.get("title", "")} · {section.get("title", "")}'
+            code_tokens = self._search_tokens(item.get("code", ""))
+            title_tokens = self._search_tokens(item.get("title", ""))
+            keyword_tokens = self._search_tokens(" ".join(item.get("keywords", [])))
+            searchable_tokens = set(code_tokens + title_tokens + keyword_tokens)
+
+            # Cada termo precisa existir como palavra real. Assim, "git" não
+            # encontra acidentalmente "digite". Prefixos continuam úteis
+            # para buscas como "rein" ou "mont".
+            def matches(term):
+                return any(
+                    token == term or (len(term) >= 3 and token.startswith(term))
+                    for token in searchable_tokens
                 )
-                results.append(enriched)
+
+            if not all(matches(term) for term in query_tokens):
+                continue
+
+            exact_code = all(term in code_tokens for term in query_tokens)
+            exact_title = all(term in title_tokens for term in query_tokens)
+            score = (3 if exact_code else 0) + (2 if exact_title else 0)
+            ranked_results.append((score, section.get("title", ""), item))
+
+        ranked_results.sort(key=lambda row: (-row[0], row[2].get("code", "")))
+        results = []
+        for _, section_title, item in ranked_results:
+            enriched = dict(item)
+            enriched["title"] = f'{item.get("title", "")} · {section_title}'
+            results.append(enriched)
 
         self._set_active_nav("")
         self._render_section(
             {"title": "BUSCA"},
             items=results,
-            search_title=f'RESULTADOS PARA "{text.strip()}"',
+            search_title=f'RESULTADOS PARA "{raw_query}"',
         )
 
     def _git_entries(self):
@@ -435,10 +462,10 @@ class ReferenceDialog(QDialog):
             }}
             QWidget#referenceTitleBar {{ background: transparent; }}
             QLabel#referenceWindowTitle {{
-                color: {YELLOW}; font-size: 9px; font-weight: 400; letter-spacing: 1px;
+                color: white; font-size: 10px; font-weight: 400; letter-spacing: 1px;
             }}
-            QLabel#referenceClose {{ color: {YELLOW}; font-size: 16px; padding: 0 4px; }}
-            QLabel#referenceClose:hover {{ color: {GREEN}; }}
+            QLabel#referenceClose {{ color: white; font-size: 16px; padding: 0 4px; }}
+            QLabel#referenceClose:hover {{ color: {YELLOW}; }}
             QLabel#referenceDivider {{
                 color: rgba(255, 196, 0, 0.58); font-size: 6px; max-height: 8px;
             }}
@@ -446,7 +473,7 @@ class ReferenceDialog(QDialog):
                 color: {YELLOW}; font-size: 16px; font-weight: 600;
                 letter-spacing: 1px; padding-top: 2px;
             }}
-            QLabel#referenceMeta {{ color: rgba(255, 196, 0, 0.76); font-size: 10px; }}
+            QLabel#referenceMeta {{ color: rgba(255, 196, 0, 0.82); font-size: 10px; padding-top: 1px; }}
             QLabel#referenceCounts {{
                 color: rgba(255, 255, 255, 0.76); font-size: 10px; padding: 1px 0 4px 0;
             }}
@@ -509,8 +536,31 @@ class ReferenceDialog(QDialog):
             """
         )
 
+    def _restore_geometry(self):
+        geometry = self.settings.value("reference_dialog_geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+
+    def _schedule_geometry_save(self):
+        self._geometry_save_timer.start(350)
+
+    def _save_geometry(self):
+        self.settings.setValue("reference_dialog_geometry", self.saveGeometry())
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self._schedule_geometry_save()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._schedule_geometry_save()
+
+    def closeEvent(self, event):
+        self._save_geometry()
+        super().closeEvent(event)
+
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and event.position().y() <= 35:
+        if event.button() == Qt.LeftButton and event.position().y() <= 28:
             self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
             return
@@ -525,4 +575,5 @@ class ReferenceDialog(QDialog):
 
     def mouseReleaseEvent(self, event):
         self.drag_position = QPoint()
+        self._save_geometry()
         super().mouseReleaseEvent(event)

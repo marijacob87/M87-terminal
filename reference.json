@@ -71,7 +71,7 @@
         {"code":"/cliente","title":"Abrir pasta de cliente","description":"Busca rapidamente uma pasta e abre o primeiro resultado. Exemplo: /rota","keywords":["cliente","pasta","abrir","finder"]},
         {"code":"//trabalho","title":"Pesquisar em Trabalhos","description":"Abre uma busca do Finder dentro de /Volumes/Trabalhos. Exemplo: //convite","keywords":["busca","finder","trabalhos","arquivo"]},
         {"code":"#app","title":"Fechar aplicativo aberto","description":"Pesquisa um aplicativo em execução e fecha o primeiro resultado. Exemplo: #acrobat","keywords":["fechar","aplicativo","processo"]},
-        {"code":"#git mensagem","title":"Enviar alterações ao GitHub","description":"Executa add, commit e push usando a mensagem informada.","keywords":["git","github","commit","push"]},
+        {"code":"#git + mensagem","title":"Enviar alterações ao GitHub","description":"Executa add, commit e push usando a mensagem informada.","keywords":["git","github","commit","push"]},
         {"code":"#zip","title":"Criar ZIP do projeto","description":"Gera uma cópia limpa do projeto na Área de Trabalho.","keywords":["zip","backup","projeto"]},
         {"code":"#code","title":"Abrir projeto no VS Code","description":"Abre a pasta atual do M87 Terminal no Visual Studio Code.","keywords":["vscode","editor","código"]},
         {"code":"##","title":"Reiniciar o Terminal","description":"Fecha a instância atual e abre o M87 Terminal novamente.","keywords":["reload","reiniciar"]},
