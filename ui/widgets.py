@@ -60,6 +60,7 @@ class CommandRow(QWidget):
         self.is_hovering_text = False
 
         self.setObjectName("commandRow")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(2, 1, 2, 1)
@@ -154,6 +155,7 @@ class SectionLabel(QLabel):
     def __init__(self, text):
         super().__init__(text.upper())
         self.setObjectName("sectionLabel")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setStyleSheet("""
             QLabel#sectionLabel {
                 color: rgba(244, 189, 4, 0.48);

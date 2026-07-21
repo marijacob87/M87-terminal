@@ -1,0 +1,118 @@
+{
+  "product": {
+    "name": "M87 TERMINAL",
+    "version": "v1.0.0",
+    "created": "03 de julho de 2026",
+    "counts": {
+      "commands": 42,
+      "tools": 9,
+      "hidden": 5
+    }
+  },
+  "sections": [
+    {
+      "id": "inicio",
+      "title": "INÍCIO",
+      "intro": "Referência rápida de comandos, ferramentas e fluxos do M87 Terminal.",
+      "items": [
+        {
+          "code": "COMO USAR",
+          "title": "Digite um código e pressione Enter",
+          "description": "Você também pode clicar diretamente no nome de um comando. Use a busca acima para localizar qualquer função por código, nome ou palavra-chave.",
+          "keywords": ["ajuda", "usar", "enter", "buscar"]
+        },
+        {
+          "code": "DRAG & DROP",
+          "title": "Arraste um PDF para o Terminal",
+          "description": "O arquivo passa a ser o PDF ativo e libera as ações INFO, CURVAS, REDUZIR e RENOMEAR. Pressione ESC para limpar o contexto.",
+          "keywords": ["pdf", "arrastar", "arquivo", "drop"]
+        }
+      ]
+    },
+    {
+      "id": "sistema",
+      "title": "SISTEMA",
+      "items": [
+        {"code":"BM","title":"Bloquear Mac","description":"Bloqueia imediatamente a tela do Mac.","keywords":["bloquear","tela","mac"]},
+        {"code":"MR","title":"Morning Routine","description":"Prepara a estação de trabalho: monta as unidades, abre Mail, WhatsApp, Safari e VMware, inicia o Windows 11 e limpa as notificações.","keywords":["rotina","mail","whatsapp","safari","vmware","windows","iniciar"]},
+        {"code":"MIN","title":"Minimizar Tudo","description":"Minimiza as janelas abertas e deixa a área de trabalho livre.","keywords":["minimizar","janelas","desktop"]},
+        {"code":"RES","title":"Reiniciar Último App","description":"Fecha e abre novamente o último aplicativo real que estava em uso.","keywords":["reiniciar","restaurar","app"]},
+        {"code":"MU","title":"Montar Unidades","description":"Verifica e monta as unidades de rede usadas no trabalho: Pasta Mimaki, Trabalhos PFI e Trabalhos.","keywords":["rede","servidor","smb","volume","unidades"]},
+        {"code":"CL","title":"Limpar Desktop","description":"Remove os arquivos da Área de Trabalho e esvazia a Lixeira.","keywords":["limpar","desktop","lixeira"]},
+        {"code":"END","title":"Desligar Mac","description":"Executa o encerramento da sessão e depois desliga o computador.","keywords":["desligar","shutdown","encerrar"]},
+        {"code":"KILL","title":"Encerrar Sessão","description":"Fecha os aplicativos, limpa o Desktop e a Lixeira, remove caches não essenciais e libera memória.","keywords":["fechar","apps","cache","memória","lixeira"]}
+      ]
+    },
+    {
+      "id": "abrir",
+      "title": "ABRIR",
+      "items": [
+        {"code":"AD","title":"Abrir Downloads","description":"Abre a pasta Downloads no Finder.","keywords":["downloads","finder","pasta"]},
+        {"code":"AM","title":"Abrir #Mariane","description":"Abre a pasta # MARIANE dentro do volume Trabalhos.","keywords":["mariane","trabalhos","pasta"]},
+        {"code":"AT","title":"Abrir Terminal","description":"Abre o Terminal do macOS.","keywords":["terminal","macos","shell"]},
+        {"code":"APP","title":"Abrir Aplicativos","description":"Abre a pasta Aplicativos do macOS.","keywords":["applications","aplicativos","pasta"]},
+        {"code":"ANY","title":"Abrir AnyDesk","description":"Mostra a lista de máquinas cadastradas e abre a conexão escolhida diretamente.","keywords":["anydesk","remoto","máquina","conexão"]}
+      ]
+    },
+    {
+      "id": "ferramentas",
+      "title": "FERRAMENTAS",
+      "items": [
+        {"code":"BAR","title":"Gerador de Códigos","description":"Abre a ferramenta de códigos de barras, QR Code e leitura de códigos.","keywords":["ean","qr","barcode","código"]},
+        {"code":"INT","title":"Intercalar PDF","description":"Intercala páginas de frente com um verso único para formar o PDF final.","keywords":["pdf","intercalar","frente","verso"]},
+        {"code":"MON","title":"Calcular Montagem","description":"Calcula a melhor e a segunda melhor montagem, com margens, sangria, espaço, pinça, rotação e aproveitamento.","keywords":["montagem","papel","aproveitamento","medidas","planos"]},
+        {"code":"MP","title":"MUPI Print","description":"Executa o fluxo MUPI Print configurado no macOS.","keywords":["mupi","print","impressão"]}
+      ]
+    },
+    {
+      "id": "pdf",
+      "title": "PDF",
+      "intro": "Estas ações aparecem quando um PDF é arrastado para o Terminal.",
+      "items": [
+        {"code":"INFO","title":"Informações do PDF","description":"Mostra nome, peso, orientação, datas, número de páginas, medidas, separações de cor, Pantones, marcas de corte e uma prévia.","keywords":["pdf","informações","pantone","medidas","preview"]},
+        {"code":"CURVAS","title":"Converter Fontes em Curvas","description":"Converte os textos do PDF em contornos e permite salvar o resultado sobre o arquivo ou com outro nome.","keywords":["pdf","fontes","curvas","contornos"]},
+        {"code":"REDUZIR","title":"Reduzir PDF","description":"Reduz o tamanho do arquivo PDF mantendo o fluxo dentro do Terminal.","keywords":["pdf","compactar","reduzir","tamanho"]},
+        {"code":"RENOMEAR","title":"Renomear PDF","description":"Abre a caixa de renomeação com os padrões usados no trabalho.","keywords":["pdf","nome","renomear"]}
+      ]
+    },
+    {
+      "id": "atalhos",
+      "title": "ATALHOS",
+      "items": [
+        {"code":"ENTER","title":"Executar","description":"Executa o comando digitado ou a sugestão atualmente selecionada.","keywords":["teclado","executar"]},
+        {"code":"↑  ↓","title":"Navegar nas sugestões","description":"Move a seleção pela lista de comandos, aplicativos, máquinas ou ações disponíveis.","keywords":["setas","sugestões","navegar"]},
+        {"code":"ESC","title":"Cancelar ou limpar contexto","description":"Fecha sugestões e remove o PDF ativo ou a operação atual.","keywords":["cancelar","limpar","pdf"]},
+        {"code":"CLIQUE","title":"Executar pela lista","description":"Clique no código ou na descrição de um comando visível para executá-lo.","keywords":["mouse","comando"]},
+        {"code":"DRAG & DROP","title":"Ativar ferramentas de PDF","description":"Arraste um PDF para qualquer área do Terminal para ativar as opções específicas do arquivo.","keywords":["arrastar","pdf","arquivo"]}
+      ]
+    },
+    {
+      "id": "desenvolvedor",
+      "title": "DESENVOLVEDOR",
+      "intro": "Comandos ocultos. Eles não aparecem na grade principal do Terminal.",
+      "items": [
+        {"code":"#git \"mensagem\"","title":"Enviar alterações ao GitHub","description":"Executa git add, cria o commit com a mensagem informada e faz git push.","keywords":["git","github","commit","push"]},
+        {"code":"#zip","title":"Gerar ZIP do projeto","description":"Cria um ZIP completo e atualizado do projeto M87 Terminal na Área de Trabalho.","keywords":["zip","backup","projeto"]},
+        {"code":"#code","title":"Abrir no VS Code","description":"Abre a pasta atual do projeto no Visual Studio Code.","keywords":["vscode","código","editor"]},
+        {"code":"#RR","title":"Recarregar Terminal","description":"Fecha a instância atual e abre novamente o M87 Terminal.","keywords":["reload","reiniciar","terminal"]},
+        {"code":"#nome","title":"Fechar aplicativo","description":"Pesquise um aplicativo aberto pelo nome e pressione Enter para encerrá-lo.","keywords":["fechar","aplicativo","processo"]},
+        {"code":"//texto","title":"Buscar em Trabalhos","description":"Pesquisa arquivos e pastas dentro de Trabalhos e abre o resultado no Finder.","keywords":["finder","buscar","trabalhos","arquivo"]}
+      ]
+    },
+    {
+      "id": "changelog",
+      "title": "CHANGELOG",
+      "intro": "Data e descrição dos commits enviados ao GitHub.",
+      "dynamic": "git"
+    },
+    {
+      "id": "sobre",
+      "title": "SOBRE",
+      "items": [
+        {"code":"M87 TERMINAL","title":"v1.0.0","description":"Criado em 03 de julho de 2026 para reunir atalhos, automações e ferramentas de pré-impressão em uma única interface.","keywords":["versão","criado","história"]},
+        {"code":"STACK","title":"Python + Qt","description":"Aplicativo desenvolvido em Python com interface construída em PySide6/Qt.","keywords":["python","qt","pyside6"]},
+        {"code":"AUTORIA","title":"Mariane Jacob","description":"Designed and developed as part of M87 Tools.","keywords":["mariane","autora","m87"]}
+      ]
+    }
+  ]
+}

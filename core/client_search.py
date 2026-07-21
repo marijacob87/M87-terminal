@@ -1,10 +1,18 @@
+import plistlib
+import re
 import subprocess
 import unicodedata
 from pathlib import Path
 
 
 TRABALHOS_PATH = Path("/Volumes/Trabalhos")
+SAVED_SEARCH_DIR = Path.home() / "Library" / "Saved Searches"
 MAX_RESULTS = 20
+
+
+# O macOS transforma ":" em "/" em nomes de arquivo.
+# Este caractere tem a mesma aparência, mas permanece como dois-pontos no Finder.
+DISPLAY_COLON = "꞉"
 
 
 def normalize(text):
@@ -71,29 +79,92 @@ def open_path(path):
     return True
 
 
-def finder_search(query):
-    query = (
-        query.replace("\\", "\\\\")
-             .replace('"', '\\"')
+def _spotlight_escape(value):
+    """Escapa texto para uma consulta Spotlight do tipo kMDItemFSName."""
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _safe_filename(value):
+    value = re.sub(r"[^\w\-. ]+", " ", str(value), flags=re.UNICODE)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value[:60] or "Busca"
+
+
+def _set_extension_hidden(path):
+    """Marca a extensão .savedSearch como oculta no Finder."""
+    script = """
+on run argv
+    tell application "Finder"
+        set searchFile to POSIX file (item 1 of argv) as alias
+        set extension hidden of searchFile to true
+    end tell
+end run
+"""
+
+    subprocess.run(
+        ["osascript", "-e", script, str(path)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
     )
 
-    script = f'''
-    tell application "Finder"
-        activate
-        open POSIX file "{TRABALHOS_PATH}"
-    end tell
 
-    delay 0.6
+def finder_search(query):
+    """Abre uma busca do Finder limitada a /Volumes/Trabalhos."""
+    query = str(query).strip()
 
-    tell application "System Events"
-        keystroke "f" using command down
-        delay 0.3
-        keystroke "{query}"
-    end tell
-    '''
+    if not query:
+        return False
+
+    if not TRABALHOS_PATH.exists():
+        raise FileNotFoundError(
+            f'A pasta "{TRABALHOS_PATH}" não está disponível.'
+        )
+
+    SAVED_SEARCH_DIR.mkdir(parents=True, exist_ok=True)
+
+    safe_query = _safe_filename(query)
+    display_name = f"M87 • Busca{DISPLAY_COLON} {safe_query}"
+    saved_search_path = SAVED_SEARCH_DIR / f"{display_name}.savedSearch"
+
+    escaped_query = _spotlight_escape(query)
+    raw_query = f'(kMDItemFSName == "*{escaped_query}*"cd)'
+    scope_path = str(TRABALHOS_PATH)
+
+    saved_search = {
+        "CompatibleVersion": 1,
+        "RawQuery": raw_query,
+        "SearchCriteria": {
+            "FXCriteriaSlices": [
+                {
+                    "criteria": raw_query,
+                    "displayValues": ["Nome", "contém", query],
+                    "rowType": 0,
+                    "subrows": [],
+                }
+            ],
+            "FXScope": 0,
+            "FXScopeArrayOfPaths": [scope_path],
+        },
+        "ViewSettings": {
+            "ListViewSettings": {
+                "calculateAllSizes": False,
+                "iconSize": 16,
+                "showIconPreview": True,
+                "sortColumn": "name",
+                "textSize": 12,
+                "useRelativeDates": True,
+            }
+        },
+    }
+
+    with saved_search_path.open("wb") as file:
+        plistlib.dump(saved_search, file, fmt=plistlib.FMT_XML, sort_keys=False)
+
+    _set_extension_hidden(saved_search_path)
 
     subprocess.Popen(
-        ["osascript", "-e", script],
+        ["open", "-a", "Finder", str(saved_search_path)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

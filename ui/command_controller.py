@@ -146,8 +146,89 @@ class CommandControllerMixin:
         open_path(selected)
         return True
 
+    def _show_routine_progress(self):
+        lines = []
+
+        for step in getattr(self, "morning_steps", []):
+            status = self.morning_step_status.get(step, "…")
+            lines.append(f"▸ {step:<14} {status}")
+
+        self.session_result_label.setText("\n".join(lines))
+        self.session_result_label.show()
+        self.ajustar_altura_ao_conteudo()
+
+    def _update_morning_step(self, label, ok):
+        self.morning_step_status[label] = "✓" if ok else "⚠"
+        self._show_routine_progress()
+
+    def _finish_morning_routine(self, elapsed):
+        from PySide6.QtCore import QTimer
+
+        elapsed_text = f"{elapsed:.1f}".replace(".", ",")
+        self.session_result_label.setText(
+            "✓ Tudo pronto! Tenha um ótimo dia, Mari!\n"
+            f"Ready in {elapsed_text} s"
+        )
+        self.session_result_label.show()
+        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+        QTimer.singleShot(12000, self.clear_session_result)
+
+        self.morning_worker = None
+
+    def _start_morning_routine(self):
+        from core.morning_routine import MorningRoutineWorker, STEPS
+
+        if getattr(self, "morning_worker", None):
+            return
+
+        self.morning_steps = list(STEPS)
+        self.morning_step_status = {
+            step: "…" for step in self.morning_steps
+        }
+        self._show_routine_progress()
+
+        self.morning_worker = MorningRoutineWorker(self)
+        self.morning_worker.progress.connect(self._update_morning_step)
+        self.morning_worker.completed.connect(self._finish_morning_routine)
+        self.morning_worker.start()
+
+    def _finish_mount_volumes(self, ok, elapsed):
+        from PySide6.QtCore import QTimer
+
+        elapsed_text = f"{elapsed:.1f}".replace(".", ",")
+        symbol = "✓" if ok else "⚠"
+        self.session_result_label.setText(
+            f"{symbol} Unidades verificadas em {elapsed_text} s"
+        )
+        self.session_result_label.show()
+        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+        QTimer.singleShot(7000, self.clear_session_result)
+        self.mount_worker = None
+
+    def _start_mount_volumes(self):
+        from core.morning_routine import MountVolumesWorker
+
+        if getattr(self, "mount_worker", None):
+            return
+
+        self.session_result_label.setText("▸ Montando unidades…")
+        self.session_result_label.show()
+        self.ajustar_altura_ao_conteudo()
+
+        self.mount_worker = MountVolumesWorker(self)
+        self.mount_worker.completed.connect(self._finish_mount_volumes)
+        self.mount_worker.start()
+
     def execute_command(self, code):
         code = code.upper()
+
+        if code == "MR":
+            self._start_morning_routine()
+            return
+
+        if code == "MU":
+            self._start_mount_volumes()
+            return
 
         if code == "ANY":
             self._clear_input_silently()
@@ -348,6 +429,7 @@ class CommandControllerMixin:
                     )
                     row_index += 1
 
+            self._fix_commands_container_height()
             return
 
         left_row = 0
@@ -392,3 +474,20 @@ class CommandControllerMixin:
                 )
                 right_row += 1
 
+        self._fix_commands_container_height()
+
+    def _fix_commands_container_height(self):
+        """Mantém a área dos comandos com altura rígida.
+
+        Assim, quando aparecem sugestões, informações de PDF ou mensagens de
+        sessão, o Qt aumenta a janela para baixo em vez de comprimir o título,
+        o status e as linhas dos comandos.
+        """
+        if not hasattr(self, "commands_container"):
+            return
+
+        self.commands_grid.activate()
+        height = self.commands_grid.sizeHint().height()
+
+        if height > 0:
+            self.commands_container.setFixedHeight(height)

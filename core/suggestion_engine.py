@@ -1,5 +1,4 @@
 from core.anydesk import get_anydesk_suggestions
-from core.app_search import search_applications
 from core.running_apps import search_running_applications
 
 
@@ -53,10 +52,9 @@ def get_suggestions(query, commands):
         app_query = query[1:].strip()
         return search_running_applications(app_query)
 
-    # //nome = aplicativos instalados
+    # //nome = busca no Finder dentro da pasta Trabalhos
     if query.startswith("//"):
-        app_query = query[2:].strip()
-        return search_applications(app_query)
+        return []
 
     # /nome = cliente
     if query.startswith("/") and not query.startswith("/app"):

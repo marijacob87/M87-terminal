@@ -47,15 +47,30 @@ def safe_eval(node):
     raise ValueError("Cálculo inválido")
 
 
+def _format_result(value):
+    """Formata números sem a cauda infinita dos floats.
+
+    Inteiros ficam sem casas decimais. Resultados quebrados usam no máximo
+    cinco casas decimais e perdem zeros desnecessários no final.
+    """
+    if isinstance(value, float):
+        if not (float("-inf") < value < float("inf")):
+            raise ValueError("Resultado inválido")
+
+        if value.is_integer():
+            return str(int(value))
+
+        text = f"{value:.5f}".rstrip("0").rstrip(".")
+    else:
+        text = str(value)
+
+    return text.replace(".", ",")
+
+
 def calculate(text):
     expression = text.strip().replace(",", ".")
 
     tree = ast.parse(expression, mode="eval")
     result = safe_eval(tree.body)
 
-    if result == int(result):
-        result = int(result)
-
-    result_text = str(result).replace(".", ",")
-
-    return f"{text.strip()}={result_text}"
+    return _format_result(result)

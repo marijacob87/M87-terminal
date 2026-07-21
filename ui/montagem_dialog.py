@@ -311,8 +311,8 @@ class MontagemDialog(QDialog):
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
 
-        self.papel_l = self._double_field(450)
-        self.papel_a = self._double_field(320)
+        self.papel_l = self._double_field(480)
+        self.papel_a = self._double_field(330)
         row = QHBoxLayout()
         row.addWidget(self._labeled("Largura (mm)", self.papel_l))
         row.addWidget(self._labeled("Altura (mm)", self.papel_a))
@@ -326,8 +326,8 @@ class MontagemDialog(QDialog):
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
 
-        self.peca_l = self._double_field(90)
-        self.peca_a = self._double_field(50)
+        self.peca_l = self._double_field(85)
+        self.peca_a = self._double_field(55)
         row = QHBoxLayout()
         row.addWidget(self._labeled("Largura (mm)", self.peca_l))
         row.addWidget(self._labeled("Altura (mm)", self.peca_a))
@@ -340,7 +340,7 @@ class MontagemDialog(QDialog):
         self.quantidade = QSpinBox()
         self.quantidade.setRange(0, 100000000)
         self.quantidade.setSpecialValueText("Opcional")
-        self.quantidade.setValue(1000)
+        self.quantidade.setValue(100)
 
         self.espaco = self._double_field(5)
         self.margem = self._double_field(5)

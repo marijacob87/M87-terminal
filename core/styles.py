@@ -39,11 +39,16 @@ QWidget {
     font-size: 13px;
     padding: 0px 4px;
 }
-#codeButton, #reloadButton {
+#codeButton, #referenceButton, #reloadButton {
     color: #FFC400;
     font-size: 9px;
     font-weight: 500;
     padding: 0px 5px;
+}
+
+#referenceButton {
+    font-size: 12px;
+    padding: 0px 3px;
 }
 
 #reloadButton {
@@ -51,7 +56,7 @@ QWidget {
     padding: 0px 3px;
 }
 
-#codeButton:hover, #reloadButton:hover {
+#codeButton:hover, #referenceButton:hover, #reloadButton:hover {
     color: #A5FF73;
 }
 
@@ -78,6 +83,14 @@ QWidget {
 #suggestionItem {
     color: #FFC400;
     font-size: 12px;
+}
+
+QLabel#calculatorResultLabel {
+    color: rgba(255,255,255,0.96);
+    font-size: 13px;
+    font-weight: 500;
+    padding-top: 1px;
+    padding-bottom: 3px;
 }
 
 QLabel#activeFileLabel {

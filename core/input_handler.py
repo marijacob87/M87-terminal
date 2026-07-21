@@ -2,7 +2,7 @@ from PySide6.QtCore import QTimer
 
 from core.app_search import open_application, search_applications
 from core.calculator import calculate, is_calculation
-from core.client_search import open_path, search_fast_client
+from core.client_search import finder_search, open_path, search_fast_client
 from core.developer_tools import publish_git_update
 from core.project_zip import create_project_zip
 from core.running_apps import close_running_application, search_running_applications
@@ -92,6 +92,22 @@ def handle_input_text(app, text):
         QTimer.singleShot(8000, app.clear_session_result)
         return
 
+
+    # =========================
+    # ## = reinicia o M87 Terminal
+    # =========================
+
+    if text == "##":
+        from PySide6.QtCore import QProcess
+        import sys
+
+        app.input.clear()
+        app.clear_suggestions()
+
+        QProcess.startDetached(sys.executable, sys.argv)
+        app.close()
+        return
+
     # =========================
     # #texto = busca app aberto e fecha
     # Ex: #acr
@@ -115,13 +131,12 @@ def handle_input_text(app, text):
         return
 
     # =========================
-    # //texto = busca aplicativo
-    # Ex: //illustrator
+    # //texto = busca no Finder dentro de /Volumes/Trabalhos
+    # Ex: //artexdocliente
     # =========================
 
     if text.startswith("//"):
         query = text[2:].strip()
-        results = search_applications(query)
 
         app.input.clear()
         app.clear_suggestions()
@@ -129,15 +144,20 @@ def handle_input_text(app, text):
         if not query:
             show_temporary_placeholder(
                 app.input,
-                "digite o nome do aplicativo"
+                "digite o nome do trabalho"
             )
-        elif results:
-            open_application(results[0])
-        else:
-            show_temporary_placeholder(
-                app.input,
-                "aplicativo não encontrado"
+            return
+
+        try:
+            finder_search(query)
+        except Exception as error:
+            app.session_result_label.setText(
+                "Não foi possível abrir a busca em Trabalhos.\n"
+                f"{error}"
             )
+            app.session_result_label.show()
+            QTimer.singleShot(0, app.ajustar_altura_ao_conteudo)
+            QTimer.singleShot(7000, app.clear_session_result)
 
         return
 
@@ -180,7 +200,8 @@ def handle_input_text(app, text):
     if is_calculation(text):
         try:
             result = calculate(text)
-            app.input.setText(result)
+            app.calculator_result_label.setText(f"= {result}")
+            app.calculator_result_label.show()
             return
         except Exception:
             show_temporary_placeholder(

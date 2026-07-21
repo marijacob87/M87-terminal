@@ -53,6 +53,7 @@ class WindowUiMixin:
         self.main_layout = QVBoxLayout(central)
         self.main_layout.setContentsMargins(14, 8, 14, 6)
         self.main_layout.setSpacing(2)
+        self.main_layout.setAlignment(Qt.AlignTop)
 
         self.build_title()
         self.build_status()
@@ -73,6 +74,14 @@ class WindowUiMixin:
         self.code_button.setToolTip("Abrir projeto no VS Code")
         self.code_button.mousePressEvent = (
             lambda event: self.open_project_in_vscode()
+        )
+
+        self.reference_button = QLabel("▤")
+        self.reference_button.setObjectName("referenceButton")
+        self.reference_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.reference_button.setToolTip("M87 Reference")
+        self.reference_button.mousePressEvent = (
+            lambda event: self.open_reference()
         )
 
         self.reload_button = QLabel("↻")
@@ -104,10 +113,28 @@ class WindowUiMixin:
         title_layout.addWidget(self.title)
         title_layout.addStretch()
         title_layout.addWidget(self.code_button)
+        title_layout.addWidget(self.reference_button)
         title_layout.addWidget(self.reload_button)
         title_layout.addWidget(self.minimize_button)
 
         self.main_layout.addWidget(self.title_container)
+
+    def open_reference(self):
+        from ui.reference_dialog import ReferenceDialog
+
+        if getattr(self, "reference_dialog", None):
+            try:
+                self.reference_dialog.show()
+                self.reference_dialog.raise_()
+                self.reference_dialog.activateWindow()
+                return
+            except RuntimeError:
+                self.reference_dialog = None
+
+        self.reference_dialog = ReferenceDialog(self)
+        self.reference_dialog.show()
+        self.reference_dialog.raise_()
+        self.reference_dialog.activateWindow()
 
     def open_project_in_vscode(self):
         project_path = os.path.dirname(
@@ -155,7 +182,14 @@ class WindowUiMixin:
         self.main_layout.addWidget(self.status_container)
 
     def build_commands(self):
-        self.commands_grid = QGridLayout()
+        self.commands_container = QWidget()
+        self.commands_container.setObjectName("commandsContainer")
+        self.commands_container.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
+
+        self.commands_grid = QGridLayout(self.commands_container)
         self.commands_grid.setContentsMargins(0, 0, 0, 0)
         self.commands_grid.setHorizontalSpacing(6)
         self.commands_grid.setVerticalSpacing(0)
@@ -179,20 +213,28 @@ class WindowUiMixin:
         for section in self.command_sections:
             self.section_labels[section] = SectionLabel(section)
 
-        self.main_layout.addLayout(self.commands_grid)
+        self.main_layout.addWidget(self.commands_container)
 
         self.divider_2 = QLabel("────────────────────────────────────")
         self.divider_2.setObjectName("divider")
+        self.divider_2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.main_layout.addWidget(self.divider_2)
 
     def build_input(self):
         self.input = TerminalInput("m87@macstudio ~ %")
+        self.input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.input.setObjectName("terminalInput")
         self.input.returnPressed.connect(self.execute_from_input)
         self.input.textChanged.connect(self.update_suggestions)
+        self.input.textChanged.connect(self.clear_calculator_result)
         self.input.arrowUpPressed.connect(self.move_suggestion_up)
         self.input.arrowDownPressed.connect(self.move_suggestion_down)
         self.input.escapePressed.connect(self.clear_context)
+
+        self.calculator_result_label = QLabel("")
+        self.calculator_result_label.setObjectName("calculatorResultLabel")
+        self.calculator_result_label.setWordWrap(False)
+        self.calculator_result_label.hide()
 
         self.session_result_label = QLabel("")
         self.session_result_label.setObjectName("activeFileLabel")
@@ -208,9 +250,16 @@ class WindowUiMixin:
         self.suggestions.clear()
 
         self.main_layout.addWidget(self.input)
+        self.main_layout.addWidget(self.calculator_result_label)
         self.main_layout.addWidget(self.session_result_label)
         self.main_layout.addWidget(self.active_file_label)
         self.main_layout.addWidget(self.suggestions)
+
+
+    def clear_calculator_result(self, _text=None):
+        if hasattr(self, "calculator_result_label"):
+            self.calculator_result_label.clear()
+            self.calculator_result_label.hide()
 
     def build_resize_grip(self):
         grip_layout = QHBoxLayout()

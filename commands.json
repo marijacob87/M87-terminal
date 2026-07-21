@@ -10,8 +10,8 @@
         "section": "Sistema",
         "code": "MR",
         "label": "Morning Routine",
-        "type": "shortcut",
-        "value": "Morning Routine"
+        "type": "internal",
+        "value": "morning_routine"
     },
     {
         "section": "Sistema",
@@ -31,8 +31,8 @@
         "section": "Sistema",
         "code": "MU",
         "label": "Montar Unidades",
-        "type": "shortcut",
-        "value": "Montar Unidades"
+        "type": "internal",
+        "value": "mount_volumes"
     },
     {
         "section": "Sistema",

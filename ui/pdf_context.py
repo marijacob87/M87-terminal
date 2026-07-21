@@ -1,6 +1,7 @@
 import os
 
 from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 
 from ui.constants import PDF_ACTIONS
 from ui.rename_pdf_dialog import RenamePdfDialog
@@ -129,8 +130,28 @@ class PdfContextMixin:
         self.input.blockSignals(False)
 
         self.suggestions.set_items(PDF_ACTIONS)
-        self.input.setFocus()
+        self.activate_after_file_drop()
         QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+
+
+    def activate_after_file_drop(self):
+        """Traz o M87 para frente e deixa o cursor pronto após o drop.
+
+        O macOS costuma devolver o foco ao aplicativo de origem no final do
+        arraste. Repetimos a ativação por alguns milissegundos para vencer essa
+        devolução de foco sem exigir um clique manual.
+        """
+        def activate():
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            QApplication.setActiveWindow(self)
+            self.input.setFocus()
+
+        activate()
+        QTimer.singleShot(0, activate)
+        QTimer.singleShot(120, activate)
+        QTimer.singleShot(280, activate)
 
     def execute_pdf_action(self, action):
         if not self.current_pdf:
@@ -145,7 +166,25 @@ class PdfContextMixin:
         if action_value == "info":
             self.open_pdf_info()
         elif action_value == "curvas":
-            print(f"CURVAS PDF: {self.current_pdf}")
+            from core.pdf_curves import converter_pdf_em_curvas
+
+            started = converter_pdf_em_curvas(self.current_pdf, self)
+
+            if started:
+                self.session_result_label.setText(
+                    "CURVAS em processamento…\n"
+                    "O original será preservado."
+                )
+                self.session_result_label.show()
+                QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+                QTimer.singleShot(10000, self.clear_session_result)
+            else:
+                self.session_result_label.setText(
+                    "Não foi possível iniciar CURVAS."
+                )
+                self.session_result_label.show()
+                QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+                QTimer.singleShot(8000, self.clear_session_result)
         elif action_value == "reduzir":
             print(f"REDUZIR PDF: {self.current_pdf}")
 
