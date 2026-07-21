@@ -43,32 +43,72 @@ def _run(command, timeout=20):
         return None
 
 
-def _ping(host):
-    result = _run(["ping", "-c", "1", "-W", "1000", host], timeout=3)
-    return bool(result and result.returncode == 0)
+def _volume_is_mounted(volume_name):
+    """Confirma a unidade pelo ponto de montagem real em /Volumes."""
+    volumes_dir = Path("/Volumes")
+
+    try:
+        for item in volumes_dir.iterdir():
+            # O macOS pode acrescentar "-1" se já existir um nome ocupado.
+            if item.name == volume_name or item.name.startswith(f"{volume_name}-"):
+                return item.is_dir()
+    except OSError as error:
+        print(f"[MU] Não foi possível consultar /Volumes: {error}")
+
+    return False
 
 
 def _mount_volume(url):
-    script = f'mount volume {url!r}'
-    result = _run(["osascript", "-e", script], timeout=15)
-    return bool(result and result.returncode == 0)
+    """Monta uma unidade SMB usando AppleScript sem quebrar URLs com espaços."""
+    script = (
+        'on run argv\n'
+        '    mount volume (item 1 of argv)\n'
+        'end run'
+    )
+    result = _run(["osascript", "-e", script, url], timeout=30)
+
+    if not result:
+        return False
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "erro desconhecido").strip()
+        print(f"[MU] Falha ao montar {url}: {detail}")
+        return False
+
+    return True
 
 
 def mount_network_volumes():
-    mounted = 0
-    reachable = 0
+    """Monta e verifica todas as unidades configuradas.
 
-    for host, url in NETWORK_VOLUMES:
-        if not _ping(host):
+    Não usa ping como pré-requisito, porque muitos servidores SMB respondem ao
+    compartilhamento mesmo quando bloqueiam ICMP. O sucesso só é considerado
+    depois de a unidade realmente aparecer em /Volumes.
+    """
+    all_ok = True
+
+    for _host, url in NETWORK_VOLUMES:
+        volume_name = url.rsplit("/", 1)[-1].replace("%20", " ")
+
+        if _volume_is_mounted(volume_name):
+            print(f"[MU] Já montada: {volume_name}")
             continue
 
-        reachable += 1
-        if _mount_volume(url):
-            mounted += 1
+        print(f"[MU] Montando: {volume_name}")
+        requested = _mount_volume(url)
 
-    # Servidores indisponíveis são ignorados, como no Atalho original.
-    return mounted == reachable
+        if requested:
+            # O Finder pode devolver antes de /Volumes ser atualizado.
+            for _ in range(20):
+                if _volume_is_mounted(volume_name):
+                    break
+                time.sleep(0.25)
 
+        mounted = _volume_is_mounted(volume_name)
+        print(f"[MU] {'OK' if mounted else 'FALHOU'}: {volume_name}")
+        all_ok = all_ok and mounted
+
+    return all_ok
 
 def _open_app(name):
     result = _run(["open", "-a", name], timeout=10)

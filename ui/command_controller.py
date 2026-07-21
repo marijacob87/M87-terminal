@@ -78,21 +78,23 @@ class CommandControllerMixin:
                 self.commands,
             )
 
+        from PySide6.QtCore import QTimer
+
         if suggestions:
             self.suggestions.set_items(suggestions)
+            # As sugestões também fazem parte do conteúdo variável. A janela
+            # precisa crescer para baixo mesmo quando não há PDF ativo.
+            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+            QTimer.singleShot(30, self.ajustar_altura_ao_conteudo)
         else:
             self.clear_suggestions()
 
-        if self.current_pdf:
-            from PySide6.QtCore import QTimer
-
-            QTimer.singleShot(
-                0,
-                self.ajustar_altura_ao_conteudo,
-            )
-
     def clear_suggestions(self):
         self.suggestions.clear()
+
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+        QTimer.singleShot(30, self.ajustar_altura_ao_conteudo)
 
     def move_suggestion_up(self):
         self.suggestions.move_up()
@@ -236,9 +238,29 @@ class CommandControllerMixin:
             return
 
         if code in ("RE", "RES"):
-            if self.last_real_app:
-                restart_app(self.last_real_app)
+            from PySide6.QtCore import QTimer
 
+            app = self.last_real_app
+            app_name = app.get("name", "aplicativo") if isinstance(app, dict) else app
+
+            if not app:
+                self.session_result_label.setText("⚠ Nenhum aplicativo anterior encontrado")
+                self.session_result_label.show()
+                QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+                QTimer.singleShot(5000, self.clear_session_result)
+                return
+
+            ok = restart_app(app)
+            symbol = "✓" if ok else "⚠"
+            message = (
+                f"{symbol} {app_name} reiniciado"
+                if ok
+                else f"{symbol} Não foi possível reiniciar {app_name}"
+            )
+            self.session_result_label.setText(message)
+            self.session_result_label.show()
+            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+            QTimer.singleShot(6000, self.clear_session_result)
             return
 
         if code == "MON":
@@ -477,17 +499,48 @@ class CommandControllerMixin:
         self._fix_commands_container_height()
 
     def _fix_commands_container_height(self):
-        """Mantém a área dos comandos com altura rígida.
+        """Reserva a altura real de todas as linhas de comandos.
 
-        Assim, quando aparecem sugestões, informações de PDF ou mensagens de
-        sessão, o Qt aumenta a janela para baixo em vez de comprimir o título,
-        o status e as linhas dos comandos.
+        O ``sizeHint`` do QGridLayout pode ser calculado cedo demais, antes de
+        as fontes e os widgets terminarem o primeiro passe de layout. Isso
+        deixava a última linha parcialmente fora do container e o divisor
+        acabava atravessando o comando MP. Fazemos dois passes e usamos a maior
+        medida disponível, com uma pequena folga inferior.
         """
         if not hasattr(self, "commands_container"):
             return
 
+        self.commands_grid.invalidate()
         self.commands_grid.activate()
-        height = self.commands_grid.sizeHint().height()
 
-        if height > 0:
-            self.commands_container.setFixedHeight(height)
+        hint_height = self.commands_grid.sizeHint().height()
+        minimum_height = self.commands_grid.minimumSize().height()
+        height = max(hint_height, minimum_height) + 8
+
+        if height > 8:
+            self.commands_container.setMinimumHeight(height)
+            self.commands_container.setMaximumHeight(height)
+
+        # No macOS, o primeiro sizeHint ainda pode mudar após o widget ser
+        # mostrado. Um segundo passe corrige a medida sem criar um loop.
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._finalize_commands_container_height)
+
+    def _finalize_commands_container_height(self):
+        if not hasattr(self, "commands_container"):
+            return
+
+        self.commands_grid.invalidate()
+        self.commands_grid.activate()
+
+        height = max(
+            self.commands_grid.sizeHint().height(),
+            self.commands_grid.minimumSize().height(),
+        ) + 8
+
+        if height > 8:
+            self.commands_container.setMinimumHeight(height)
+            self.commands_container.setMaximumHeight(height)
+
+        if getattr(self, "current_pdf", None):
+            self.ajustar_altura_ao_conteudo()

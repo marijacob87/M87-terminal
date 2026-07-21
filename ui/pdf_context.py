@@ -9,6 +9,13 @@ from ui.rename_pdf_dialog import RenamePdfDialog
 
 class PdfContextMixin:
     def ajustar_altura_ao_conteudo(self):
+        """Ajusta a janela ao conteúdo variável sem comprimir o topo.
+
+        Serve para sugestões, informações de PDF, resultados e rotinas. O
+        cálculo anterior só era disparado para PDF; por isso as sugestões
+        ocupavam espaço sem que a janela crescesse e acabavam sobrepostas aos
+        comandos.
+        """
         central = self.centralWidget()
 
         if central is None:
@@ -16,10 +23,28 @@ class PdfContextMixin:
 
         layout = central.layout()
 
-        if layout is not None:
-            layout.activate()
+        if layout is None:
+            return
 
-        required_height = central.sizeHint().height()
+        layout.invalidate()
+        layout.activate()
+        central.updateGeometry()
+
+        margins = layout.contentsMargins()
+        layout_height = max(
+            layout.sizeHint().height(),
+            layout.minimumSize().height(),
+        )
+
+        # A altura do central já inclui quase tudo, mas em alguns ciclos do Qt
+        # o último widget ainda não entrou no sizeHint. Somamos uma margem
+        # pequena e estável para impedir que o divisor ou as sugestões encostem.
+        required_height = max(
+            central.sizeHint().height(),
+            central.minimumSizeHint().height(),
+            layout_height + margins.top() + margins.bottom(),
+        ) + 12
+
         new_height = max(self.normal_height, required_height)
         screen = self.screen()
 

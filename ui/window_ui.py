@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QSizeGrip,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -18,7 +17,12 @@ from core.config import APP_MIN_HEIGHT, APP_MIN_WIDTH, APP_TITLE
 from core.state import load_window_state
 from ui.suggestions import SuggestionsBox
 from ui.terminal_input import TerminalInput
-from ui.widgets import CommandRow, MetallicRainbowLabel, SectionLabel
+from ui.widgets import (
+    CommandRow,
+    DarkMetallicTitleBar,
+    HorizontalResizeGrip,
+    SectionLabel,
+)
 
 
 class WindowUiMixin:
@@ -51,7 +55,7 @@ class WindowUiMixin:
         central.setAutoFillBackground(False)
 
         self.main_layout = QVBoxLayout(central)
-        self.main_layout.setContentsMargins(14, 8, 14, 6)
+        self.main_layout.setContentsMargins(0, 0, 0, 6)
         self.main_layout.setSpacing(2)
         self.main_layout.setAlignment(Qt.AlignTop)
 
@@ -65,51 +69,38 @@ class WindowUiMixin:
         QTimer.singleShot(100, self.input.setFocus)
 
     def build_title(self):
-        self.title = MetallicRainbowLabel(APP_TITLE)
+        self.title = QLabel(APP_TITLE.upper())
         self.title.setObjectName("title")
+        self.title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         self.code_button = QLabel("</>")
         self.code_button.setObjectName("codeButton")
         self.code_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.code_button.setToolTip("Abrir projeto no VS Code")
-        self.code_button.mousePressEvent = (
-            lambda event: self.open_project_in_vscode()
-        )
+        self.code_button.mousePressEvent = lambda event: self.open_project_in_vscode()
 
         self.reference_button = QLabel("▤")
         self.reference_button.setObjectName("referenceButton")
         self.reference_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.reference_button.setToolTip("M87 Reference")
-        self.reference_button.mousePressEvent = (
-            lambda event: self.open_reference()
-        )
+        self.reference_button.mousePressEvent = lambda event: self.open_reference()
 
         self.reload_button = QLabel("↻")
         self.reload_button.setObjectName("reloadButton")
         self.reload_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.reload_button.setToolTip("Reload Terminal")
-        self.reload_button.mousePressEvent = (
-            lambda event: self.restart_app()
-        )
+        self.reload_button.mousePressEvent = lambda event: self.restart_app()
 
         self.minimize_button = QLabel("—")
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.minimize_button.setToolTip("Minimizar")
-        self.minimize_button.mousePressEvent = (
-            lambda event: self.showMinimized()
-        )
+        self.minimize_button.mousePressEvent = lambda event: self.showMinimized()
 
-        self.title_container = QWidget()
-        self.title_container.setObjectName("titleContainer")
-        self.title_container.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Fixed,
-        )
-
+        self.title_container = DarkMetallicTitleBar()
         title_layout = QHBoxLayout(self.title_container)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(2)
+        title_layout.setContentsMargins(14, 0, 9, 0)
+        title_layout.setSpacing(0)
         title_layout.addWidget(self.title)
         title_layout.addStretch()
         title_layout.addWidget(self.code_button)
@@ -118,6 +109,15 @@ class WindowUiMixin:
         title_layout.addWidget(self.minimize_button)
 
         self.main_layout.addWidget(self.title_container)
+
+        # Todo o conteúdo abaixo da barra mantém a margem compacta original.
+        self.content_container = QWidget()
+        self.content_container.setObjectName("contentContainer")
+        self.content_layout = QVBoxLayout(self.content_container)
+        self.content_layout.setContentsMargins(14, 6, 14, 0)
+        self.content_layout.setSpacing(2)
+        self.content_layout.setAlignment(Qt.AlignTop)
+        self.main_layout.addWidget(self.content_container)
 
     def open_reference(self):
         from ui.reference_dialog import ReferenceDialog
@@ -179,7 +179,7 @@ class WindowUiMixin:
 
         status_layout.addWidget(self.status)
         status_layout.addWidget(self.divider_1)
-        self.main_layout.addWidget(self.status_container)
+        self.content_layout.addWidget(self.status_container)
 
     def build_commands(self):
         self.commands_container = QWidget()
@@ -213,12 +213,12 @@ class WindowUiMixin:
         for section in self.command_sections:
             self.section_labels[section] = SectionLabel(section)
 
-        self.main_layout.addWidget(self.commands_container)
+        self.content_layout.addWidget(self.commands_container)
 
         self.divider_2 = QLabel("────────────────────────────────────")
         self.divider_2.setObjectName("divider")
         self.divider_2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.main_layout.addWidget(self.divider_2)
+        self.content_layout.addWidget(self.divider_2)
 
     def build_input(self):
         self.input = TerminalInput("m87@macstudio ~ %")
@@ -249,11 +249,11 @@ class WindowUiMixin:
         self.suggestions = SuggestionsBox()
         self.suggestions.clear()
 
-        self.main_layout.addWidget(self.input)
-        self.main_layout.addWidget(self.calculator_result_label)
-        self.main_layout.addWidget(self.session_result_label)
-        self.main_layout.addWidget(self.active_file_label)
-        self.main_layout.addWidget(self.suggestions)
+        self.content_layout.addWidget(self.input)
+        self.content_layout.addWidget(self.calculator_result_label)
+        self.content_layout.addWidget(self.session_result_label)
+        self.content_layout.addWidget(self.active_file_label)
+        self.content_layout.addWidget(self.suggestions)
 
 
     def clear_calculator_result(self, _text=None):
@@ -265,9 +265,9 @@ class WindowUiMixin:
         grip_layout = QHBoxLayout()
         grip_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.size_grip = QSizeGrip(self)
+        self.size_grip = HorizontalResizeGrip(self, self)
         self.size_grip.setObjectName("sizeGrip")
 
         grip_layout.addStretch()
         grip_layout.addWidget(self.size_grip)
-        self.main_layout.addLayout(grip_layout)
+        self.content_layout.addLayout(grip_layout)

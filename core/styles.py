@@ -6,84 +6,48 @@ QWidget {
 }
 
 #terminalBox {
-    background-color: rgba(0, 0, 0, 120);
-    border: 0px solid rgba(114, 255, 66, 0.30);
+    background-color: rgba(0, 0, 0, 178);
+    border: 1px solid rgba(255, 255, 255, 42);
     border-radius: 13px;
 }
 
+#contentContainer { background: transparent; }
+
 #title {
-    color: #FFC400;
-    font-size: 9px;
-    font-weight: 200;
-    letter-spacing: 1px;
-}
-
-#status {
-    color: #FFC400;
+    color: rgba(255, 255, 255, 0.97);
     font-size: 10px;
-}
-
-#divider {
-    color: #FFC400;
-    font-size: 6px;
-}
-
-#flag {
-    color: #FFC400;
-    font-size: 12px;
     font-weight: 700;
+    letter-spacing: 0.5px;
+    background: transparent;
 }
 
-#minimizeButton {
-    color: #FFC400;
-    font-size: 13px;
-    padding: 0px 4px;
-}
-#codeButton, #referenceButton, #reloadButton {
-    color: #FFC400;
-    font-size: 9px;
-    font-weight: 500;
-    padding: 0px 5px;
-}
+#status { color: #FFC400; font-size: 10px; }
+#divider { color: rgba(255, 255, 255, 0.25); font-size: 6px; }
+#flag { color: #FFC400; font-size: 12px; font-weight: 700; }
 
-#referenceButton {
-    font-size: 12px;
-    padding: 0px 3px;
-}
-
+#minimizeButton,
+#codeButton,
+#referenceButton,
 #reloadButton {
-    font-size: 13px;
-    padding: 0px 3px;
-}
-
-#codeButton:hover, #referenceButton:hover, #reloadButton:hover {
-    color: #A5FF73;
-}
-
-#minimizeButton:hover {
-    color: #A5FF73;
-}
-
-#sizeGrip {
-    width: 12px;
-    height: 12px;
+    color: rgba(255, 255, 255, 0.96);
     background: transparent;
+    font-weight: 600;
 }
 
-#terminalInput {
-    background: transparent;
-    border: none;
-    min-height: 18px;
-}
+#minimizeButton { font-size: 13px; padding: 0px 2px; }
+#codeButton { font-size: 9px; padding: 0px 2px; }
+#referenceButton { font-size: 12px; padding: 0px 2px; }
+#reloadButton { font-size: 13px; padding: 0px 2px; }
 
-#suggestionsBox {
-    background: transparent;
-}
+#codeButton:hover,
+#referenceButton:hover,
+#reloadButton:hover,
+#minimizeButton:hover { color: #FFE066; }
 
-#suggestionItem {
-    color: #FFC400;
-    font-size: 12px;
-}
+#sizeGrip { width: 14px; height: 12px; background: transparent; }
+#terminalInput { background: transparent; border: none; min-height: 18px; }
+#suggestionsBox { background: transparent; }
+#suggestionItem { color: #FFC400; font-size: 12px; }
 
 QLabel#calculatorResultLabel {
     color: rgba(255,255,255,0.96);
@@ -102,9 +66,5 @@ QLabel#activeFileLabel {
     line-height: 1.25;
 }
 
-#suggestionSelected {
-    color: #FFC400;
-    font-size: 11px;
-}
-
+#suggestionSelected { color: #FFC400; font-size: 11px; }
 """

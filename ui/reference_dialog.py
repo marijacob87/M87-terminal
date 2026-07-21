@@ -8,6 +8,7 @@ from PySide6.QtGui import QCursor, QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -18,9 +19,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE_FILE = ROOT / "reference.json"
+COMMANDS_FILE = ROOT / "commands.json"
 YELLOW = "#FFC400"
 GREEN = "#A5FF73"
 
@@ -37,7 +38,7 @@ class ReferenceDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.drag_position = QPoint()
-        self.data = self._load_data()
+        self.data = self._load_json(REFERENCE_FILE, {"product": {}, "sections": []})
         self.sections = self.data.get("sections", [])
         self.active_section_id = "inicio"
         self.sidebar_buttons = {}
@@ -47,20 +48,13 @@ class ReferenceDialog(QDialog):
         self._apply_style()
         self.show_section("inicio")
 
-    def _load_data(self):
+    @staticmethod
+    def _load_json(path, fallback):
         try:
-            with open(REFERENCE_FILE, "r", encoding="utf-8") as file:
+            with open(path, "r", encoding="utf-8") as file:
                 return json.load(file)
         except Exception:
-            return {
-                "product": {
-                    "name": "M87 TERMINAL",
-                    "version": "v1.0.0",
-                    "created": "03 de julho de 2026",
-                    "counts": {"commands": 0, "tools": 0, "hidden": 0},
-                },
-                "sections": [],
-            }
+            return fallback
 
     def _setup_window(self):
         self.setWindowTitle("M87 TERMINAL · REFERENCE")
@@ -115,9 +109,16 @@ class ReferenceDialog(QDialog):
         parent_layout.addWidget(bar)
         parent_layout.addWidget(self._divider())
 
+    def _counts(self):
+        commands = self._load_json(COMMANDS_FILE, [])
+        visible = len(commands) if isinstance(commands, list) else 0
+        special = 7
+        pdf_actions = 4
+        return visible, special, pdf_actions
+
     def _build_header(self, parent_layout):
         product = self.data.get("product", {})
-        counts = product.get("counts", {})
+        visible, special, pdf_actions = self._counts()
 
         name = QLabel(product.get("name", "M87 TERMINAL"))
         name.setObjectName("referenceProduct")
@@ -129,9 +130,8 @@ class ReferenceDialog(QDialog):
         version.setObjectName("referenceMeta")
 
         summary = QLabel(
-            f'{counts.get("commands", 0)} comandos  ·  '
-            f'{counts.get("tools", 0)} ferramentas  ·  '
-            f'{counts.get("hidden", 0)} ocultos'
+            f"{visible} comandos  ·  {special} recursos especiais  ·  "
+            f"{pdf_actions} ações PDF"
         )
         summary.setObjectName("referenceCounts")
 
@@ -165,7 +165,7 @@ class ReferenceDialog(QDialog):
 
         sidebar = QWidget()
         sidebar.setObjectName("referenceSidebar")
-        sidebar.setFixedWidth(178)
+        sidebar.setFixedWidth(158)
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 2, 10, 0)
         sidebar_layout.setSpacing(1)
@@ -202,7 +202,7 @@ class ReferenceDialog(QDialog):
         self.content.setObjectName("referenceContent")
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(4, 0, 8, 8)
-        self.content_layout.setSpacing(7)
+        self.content_layout.setSpacing(4)
         self.content_layout.setAlignment(Qt.AlignTop)
         self.scroll.setWidget(self.content)
 
@@ -241,14 +241,9 @@ class ReferenceDialog(QDialog):
         self.search.blockSignals(False)
         self._set_active_nav(section_id)
 
-        section = next(
-            (s for s in self.sections if s.get("id") == section_id),
-            None,
-        )
-        if not section:
-            return
-
-        self._render_section(section)
+        section = next((s for s in self.sections if s.get("id") == section_id), None)
+        if section:
+            self._render_section(section)
 
     def _render_section(self, section, items=None, search_title=None):
         self._clear_content()
@@ -269,27 +264,43 @@ class ReferenceDialog(QDialog):
             self.content_layout.addStretch()
             return
 
-        render_items = section.get("items", []) if items is None else items
-        if not render_items:
-            empty = QLabel("Nenhum resultado encontrado.")
-            empty.setObjectName("referenceEmpty")
-            self.content_layout.addWidget(empty)
+        if items is not None:
+            self._render_items(items)
+        elif section.get("groups"):
+            for group in section.get("groups", []):
+                group_label = QLabel(group.get("title", ""))
+                group_label.setObjectName("referenceGroup")
+                self.content_layout.addWidget(group_label)
+                self._render_items(group.get("items", []))
         else:
-            for item in render_items:
-                self.content_layout.addWidget(self._item_widget(item))
+            self._render_items(section.get("items", []))
 
         self.content_layout.addStretch()
         self.scroll.verticalScrollBar().setValue(0)
 
+    def _render_items(self, items):
+        if not items:
+            empty = QLabel("Nenhum resultado encontrado.")
+            empty.setObjectName("referenceEmpty")
+            self.content_layout.addWidget(empty)
+            return
+        for item in items:
+            self.content_layout.addWidget(self._item_widget(item))
+
     def _item_widget(self, item):
         widget = QWidget()
         widget.setObjectName("referenceItem")
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 4, 0, 7)
-        layout.setSpacing(1)
+
+        layout = QGridLayout(widget)
+        layout.setContentsMargins(0, 4, 0, 6)
+        layout.setHorizontalSpacing(12)
+        layout.setVerticalSpacing(1)
+        layout.setColumnMinimumWidth(0, 112)
+        layout.setColumnStretch(1, 1)
 
         code = QLabel(item.get("code", ""))
         code.setObjectName("referenceCode")
+        code.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         code.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
         title = QLabel(item.get("title", ""))
@@ -301,10 +312,18 @@ class ReferenceDialog(QDialog):
         description.setWordWrap(True)
         description.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        layout.addWidget(code)
-        layout.addWidget(title)
-        layout.addWidget(description)
+        layout.addWidget(code, 0, 0, 2, 1)
+        layout.addWidget(title, 0, 1)
+        layout.addWidget(description, 1, 1)
         return widget
+
+    def _all_items(self):
+        for section in self.sections:
+            for item in section.get("items", []):
+                yield section, item
+            for group in section.get("groups", []):
+                for item in group.get("items", []):
+                    yield section, item
 
     def _on_search(self, text):
         query = text.strip().casefold()
@@ -317,30 +336,26 @@ class ReferenceDialog(QDialog):
             return
 
         results = []
-        for section in self.sections:
-            if section.get("dynamic"):
-                continue
-            for item in section.get("items", []):
-                haystack = " ".join(
-                    [
-                        item.get("code", ""),
-                        item.get("title", ""),
-                        item.get("description", ""),
-                        " ".join(item.get("keywords", [])),
-                        section.get("title", ""),
-                    ]
-                ).casefold()
-                if query in haystack:
-                    enriched = dict(item)
-                    enriched["title"] = (
-                        f'{item.get("title", "")}  ·  {section.get("title", "")}'
-                    )
-                    results.append(enriched)
+        for section, item in self._all_items():
+            haystack = " ".join(
+                [
+                    item.get("code", ""),
+                    item.get("title", ""),
+                    item.get("description", ""),
+                    " ".join(item.get("keywords", [])),
+                    section.get("title", ""),
+                ]
+            ).casefold()
+            if query in haystack:
+                enriched = dict(item)
+                enriched["title"] = (
+                    f'{item.get("title", "")} · {section.get("title", "")}'
+                )
+                results.append(enriched)
 
         self._set_active_nav("")
-        virtual_section = {"title": "BUSCA", "items": results}
         self._render_section(
-            virtual_section,
+            {"title": "BUSCA"},
             items=results,
             search_title=f'RESULTADOS PARA "{text.strip()}"',
         )
@@ -349,14 +364,10 @@ class ReferenceDialog(QDialog):
         try:
             result = subprocess.run(
                 [
-                    "git",
-                    "-C",
-                    str(ROOT),
-                    "log",
+                    "git", "-C", str(ROOT), "log",
                     "--date=format:%d/%m/%Y",
                     "--pretty=format:%ad%x1f%s%x1e",
-                    "-n",
-                    "80",
+                    "-n", "80",
                 ],
                 capture_output=True,
                 text=True,
@@ -382,7 +393,7 @@ class ReferenceDialog(QDialog):
         if not entries:
             message = QLabel(
                 "O histórico do Git não está disponível nesta cópia do projeto.\n"
-                "Ao abrir pelo projeto conectado ao GitHub, os commits aparecem aqui automaticamente."
+                "No projeto conectado ao GitHub, os commits aparecem aqui automaticamente."
             )
             message.setObjectName("referenceDescription")
             message.setWordWrap(True)
@@ -424,154 +435,83 @@ class ReferenceDialog(QDialog):
             }}
             QWidget#referenceTitleBar {{ background: transparent; }}
             QLabel#referenceWindowTitle {{
-                color: {YELLOW};
-                font-size: 9px;
-                font-weight: 400;
-                letter-spacing: 1px;
+                color: {YELLOW}; font-size: 9px; font-weight: 400; letter-spacing: 1px;
             }}
-            QLabel#referenceClose {{
-                color: {YELLOW};
-                font-size: 16px;
-                padding: 0 4px;
-            }}
+            QLabel#referenceClose {{ color: {YELLOW}; font-size: 16px; padding: 0 4px; }}
             QLabel#referenceClose:hover {{ color: {GREEN}; }}
             QLabel#referenceDivider {{
-                color: rgba(255, 196, 0, 0.58);
-                font-size: 6px;
-                max-height: 8px;
+                color: rgba(255, 196, 0, 0.58); font-size: 6px; max-height: 8px;
             }}
             QLabel#referenceProduct {{
-                color: {YELLOW};
-                font-size: 16px;
-                font-weight: 600;
-                letter-spacing: 1px;
-                padding-top: 2px;
+                color: {YELLOW}; font-size: 16px; font-weight: 600;
+                letter-spacing: 1px; padding-top: 2px;
             }}
-            QLabel#referenceMeta {{
-                color: rgba(255, 196, 0, 0.76);
-                font-size: 10px;
-            }}
+            QLabel#referenceMeta {{ color: rgba(255, 196, 0, 0.76); font-size: 10px; }}
             QLabel#referenceCounts {{
-                color: rgba(255, 255, 255, 0.76);
-                font-size: 10px;
-                padding: 1px 0 4px 0;
+                color: rgba(255, 255, 255, 0.76); font-size: 10px; padding: 1px 0 4px 0;
             }}
-            QLabel#referencePrompt {{
-                color: {YELLOW};
-                font-size: 11px;
-            }}
+            QLabel#referencePrompt {{ color: {YELLOW}; font-size: 11px; }}
             QLineEdit#referenceSearch {{
-                background: transparent;
-                border: none;
-                color: rgba(255,255,255,0.94);
-                selection-background-color: rgba(255,196,0,0.30);
-                padding: 0;
-                min-height: 20px;
+                background: transparent; border: none; color: rgba(255,255,255,0.94);
+                selection-background-color: rgba(255,196,0,0.30); padding: 0; min-height: 20px;
             }}
-            QLineEdit#referenceSearch::placeholder {{
-                color: rgba(255,255,255,0.34);
-            }}
+            QLineEdit#referenceSearch::placeholder {{ color: rgba(255,255,255,0.34); }}
             QWidget#referenceSidebar {{ background: transparent; }}
             QPushButton#referenceNav {{
-                background: transparent;
-                border: none;
-                color: rgba(255, 196, 0, 0.56);
-                text-align: left;
-                padding: 5px 2px;
-                font-size: 10px;
-                letter-spacing: 1px;
+                background: transparent; border: none; color: rgba(255, 196, 0, 0.56);
+                text-align: left; padding: 5px 2px; font-size: 10px; letter-spacing: 1px;
             }}
-            QPushButton#referenceNav:hover {{
-                color: rgba(255, 239, 150, 0.96);
-            }}
-            QPushButton#referenceNav:checked {{
-                color: {YELLOW};
-            }}
+            QPushButton#referenceNav:hover {{ color: rgba(255, 239, 150, 0.96); }}
+            QPushButton#referenceNav:checked {{ color: {YELLOW}; }}
             QLabel#referenceSignature {{
-                color: rgba(255,255,255,0.38);
-                font-size: 9px;
-                line-height: 1.25;
-                padding: 8px 2px 2px 2px;
+                color: rgba(255,255,255,0.38); font-size: 9px; padding: 8px 2px 2px 2px;
             }}
             QFrame#referenceVerticalDivider {{
-                color: rgba(255,196,0,0.26);
-                background: rgba(255,196,0,0.26);
-                max-width: 1px;
+                color: rgba(255,196,0,0.26); background: rgba(255,196,0,0.26); max-width: 1px;
             }}
-            QScrollArea#referenceScroll,
-            QWidget#referenceContent {{
-                background: transparent;
-                border: none;
+            QScrollArea#referenceScroll, QWidget#referenceContent {{
+                background: transparent; border: none;
             }}
-            QScrollBar:vertical {{
-                background: transparent;
-                width: 7px;
-                margin: 0;
-            }}
+            QScrollBar:vertical {{ background: transparent; width: 7px; margin: 0; }}
             QScrollBar::handle:vertical {{
-                background: rgba(255,196,0,0.30);
-                min-height: 28px;
-                border-radius: 3px;
+                background: rgba(255,196,0,0.30); min-height: 28px; border-radius: 3px;
             }}
-            QScrollBar::handle:vertical:hover {{
-                background: rgba(255,196,0,0.52);
-            }}
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {{ height: 0; }}
+            QScrollBar::handle:vertical:hover {{ background: rgba(255,196,0,0.52); }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
             QLabel#referenceHeading {{
-                color: {YELLOW};
-                font-size: 13px;
-                font-weight: 600;
-                letter-spacing: 1px;
-                padding: 2px 0 5px 0;
+                color: {YELLOW}; font-size: 13px; font-weight: 600;
+                letter-spacing: 1px; padding: 2px 0 4px 0;
             }}
             QLabel#referenceIntro {{
-                color: rgba(255,255,255,0.62);
-                font-size: 10px;
-                padding: 0 0 7px 0;
+                color: rgba(255,255,255,0.62); font-size: 10px; padding: 0 0 5px 0;
+            }}
+            QLabel#referenceGroup {{
+                color: rgba(255,196,0,0.72); font-size: 9px; font-weight: 600;
+                letter-spacing: 1px; padding: 8px 0 2px 0;
             }}
             QWidget#referenceItem {{
-                background: transparent;
-                border-bottom: 1px solid rgba(255,196,0,0.10);
+                background: transparent; border-bottom: 1px solid rgba(255,196,0,0.10);
             }}
-            QLabel#referenceCode {{
-                color: {YELLOW};
-                font-size: 11px;
-                font-weight: 600;
-            }}
-            QLabel#referenceItemTitle {{
-                color: rgba(255,239,150,0.88);
-                font-size: 10px;
-            }}
+            QLabel#referenceCode {{ color: {YELLOW}; font-size: 10px; font-weight: 600; }}
+            QLabel#referenceItemTitle {{ color: rgba(255,239,150,0.88); font-size: 10px; }}
             QLabel#referenceDescription {{
-                color: rgba(255,255,255,0.67);
-                font-size: 10px;
-                padding-top: 2px;
+                color: rgba(255,255,255,0.67); font-size: 10px; padding-top: 1px;
             }}
             QLabel#referenceEmpty {{
-                color: rgba(255,255,255,0.45);
-                font-size: 10px;
-                padding-top: 8px;
+                color: rgba(255,255,255,0.45); font-size: 10px; padding-top: 8px;
             }}
             QLabel#referenceChangeDate {{
-                color: {YELLOW};
-                font-size: 10px;
-                font-weight: 600;
-                padding: 9px 0 2px 0;
+                color: {YELLOW}; font-size: 10px; font-weight: 600; padding: 9px 0 2px 0;
             }}
             QLabel#referenceCommit {{
-                color: rgba(255,255,255,0.68);
-                font-size: 10px;
-                padding: 2px 0 3px 0;
+                color: rgba(255,255,255,0.68); font-size: 10px; padding: 2px 0 3px 0;
             }}
             """
         )
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and event.position().y() <= 35:
-            self.drag_position = (
-                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            )
+            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
             return
         super().mousePressEvent(event)

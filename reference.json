@@ -2,101 +2,106 @@
   "product": {
     "name": "M87 TERMINAL",
     "version": "v1.0.0",
-    "created": "03 de julho de 2026",
-    "counts": {
-      "commands": 42,
-      "tools": 9,
-      "hidden": 5
-    }
+    "created": "03 de julho de 2026"
   },
   "sections": [
     {
       "id": "inicio",
       "title": "INÍCIO",
-      "intro": "Referência rápida de comandos, ferramentas e fluxos do M87 Terminal.",
+      "intro": "Referência rápida do M87 Terminal.",
       "items": [
         {
           "code": "COMO USAR",
-          "title": "Digite um código e pressione Enter",
-          "description": "Você também pode clicar diretamente no nome de um comando. Use a busca acima para localizar qualquer função por código, nome ou palavra-chave.",
-          "keywords": ["ajuda", "usar", "enter", "buscar"]
+          "title": "Digite um código ou clique em um comando.",
+          "description": "Use a busca acima para localizar qualquer função pelo código, nome ou descrição.",
+          "keywords": ["ajuda", "usar", "buscar", "comando"]
         },
         {
-          "code": "DRAG & DROP",
-          "title": "Arraste um PDF para o Terminal",
-          "description": "O arquivo passa a ser o PDF ativo e libera as ações INFO, CURVAS, REDUZIR e RENOMEAR. Pressione ESC para limpar o contexto.",
-          "keywords": ["pdf", "arrastar", "arquivo", "drop"]
+          "code": "PDF",
+          "title": "Arraste um PDF para qualquer área do Terminal.",
+          "description": "Isso ativa INFO, CURVAS, REDUZIR e RENOMEAR. Pressione ESC para remover o PDF ativo.",
+          "keywords": ["arrastar", "drag", "drop", "arquivo"]
         }
       ]
     },
     {
-      "id": "sistema",
-      "title": "SISTEMA",
-      "items": [
-        {"code":"BM","title":"Bloquear Mac","description":"Bloqueia imediatamente a tela do Mac.","keywords":["bloquear","tela","mac"]},
-        {"code":"MR","title":"Morning Routine","description":"Prepara a estação de trabalho: monta as unidades, abre Mail, WhatsApp, Safari e VMware, inicia o Windows 11 e limpa as notificações.","keywords":["rotina","mail","whatsapp","safari","vmware","windows","iniciar"]},
-        {"code":"MIN","title":"Minimizar Tudo","description":"Minimiza as janelas abertas e deixa a área de trabalho livre.","keywords":["minimizar","janelas","desktop"]},
-        {"code":"RES","title":"Reiniciar Último App","description":"Fecha e abre novamente o último aplicativo real que estava em uso.","keywords":["reiniciar","restaurar","app"]},
-        {"code":"MU","title":"Montar Unidades","description":"Verifica e monta as unidades de rede usadas no trabalho: Pasta Mimaki, Trabalhos PFI e Trabalhos.","keywords":["rede","servidor","smb","volume","unidades"]},
-        {"code":"CL","title":"Limpar Desktop","description":"Remove os arquivos da Área de Trabalho e esvazia a Lixeira.","keywords":["limpar","desktop","lixeira"]},
-        {"code":"END","title":"Desligar Mac","description":"Executa o encerramento da sessão e depois desliga o computador.","keywords":["desligar","shutdown","encerrar"]},
-        {"code":"KILL","title":"Encerrar Sessão","description":"Fecha os aplicativos, limpa o Desktop e a Lixeira, remove caches não essenciais e libera memória.","keywords":["fechar","apps","cache","memória","lixeira"]}
+      "id": "comandos",
+      "title": "COMANDOS",
+      "intro": "Todos os comandos visíveis, organizados como aparecem no Terminal.",
+      "groups": [
+        {
+          "title": "SISTEMA",
+          "items": [
+            {"code":"BM","title":"Bloquear Mac","description":"Bloqueia imediatamente a tela do Mac.","keywords":["bloquear","tela"]},
+            {"code":"MR","title":"Morning Routine","description":"Monta as unidades, abre os aplicativos de trabalho e inicia o Windows 11.","keywords":["mail","whatsapp","safari","vmware","windows"]},
+            {"code":"MIN","title":"Minimizar Tudo","description":"Minimiza as janelas abertas.","keywords":["minimizar","janelas"]},
+            {"code":"RES","title":"Reiniciar Último App","description":"Fecha e abre novamente o último aplicativo usado.","keywords":["reiniciar","restaurar","app"]},
+            {"code":"MU","title":"Montar Unidades","description":"Monta Pasta Mimaki, Trabalhos PFI e Trabalhos.","keywords":["rede","servidor","smb"]},
+            {"code":"CL","title":"Limpar Desktop","description":"Limpa a Área de Trabalho e esvazia a Lixeira.","keywords":["limpar","lixeira"]},
+            {"code":"END","title":"Desligar Mac","description":"Encerra a sessão de trabalho e desliga o computador.","keywords":["desligar","shutdown"]},
+            {"code":"KILL","title":"Encerrar Sessão","description":"Fecha aplicativos, limpa Desktop e Lixeira e libera memória.","keywords":["fechar","apps","cache","memória"]}
+          ]
+        },
+        {
+          "title": "ABRIR",
+          "items": [
+            {"code":"AD","title":"Abrir Downloads","description":"Abre a pasta Downloads no Finder.","keywords":["downloads","finder"]},
+            {"code":"AM","title":"Abrir #Mariane","description":"Abre a pasta # MARIANE dentro de Trabalhos.","keywords":["mariane","trabalhos"]},
+            {"code":"AT","title":"Abrir Terminal","description":"Abre o Terminal do macOS.","keywords":["terminal","shell"]},
+            {"code":"APP","title":"Abrir Aplicativos","description":"Abre a pasta Aplicativos do macOS.","keywords":["applications","apps"]},
+            {"code":"ANY","title":"Abrir AnyDesk","description":"Mostra as máquinas cadastradas e abre a conexão escolhida.","keywords":["anydesk","remoto","máquina"]}
+          ]
+        },
+        {
+          "title": "FERRAMENTAS",
+          "items": [
+            {"code":"BAR","title":"Gerador de Códigos","description":"Abre as ferramentas de EAN, QR Code e leitor de códigos.","keywords":["ean","qr","barcode"]},
+            {"code":"INT","title":"Intercalar PDF","description":"Intercala páginas de frente com um verso único.","keywords":["pdf","frente","verso"]},
+            {"code":"MON","title":"Calcular Montagem","description":"Calcula montagens, aproveitamento, margens, sangria, pinça e rotação.","keywords":["montagem","papel","planos"]},
+            {"code":"MP","title":"MUPI Print","description":"Executa o fluxo MUPI Print configurado no macOS.","keywords":["mupi","impressão"]}
+          ]
+        }
       ]
     },
     {
-      "id": "abrir",
-      "title": "ABRIR",
+      "id": "buscas",
+      "title": "BUSCAS",
+      "intro": "Comandos especiais que não aparecem na lista principal.",
       "items": [
-        {"code":"AD","title":"Abrir Downloads","description":"Abre a pasta Downloads no Finder.","keywords":["downloads","finder","pasta"]},
-        {"code":"AM","title":"Abrir #Mariane","description":"Abre a pasta # MARIANE dentro do volume Trabalhos.","keywords":["mariane","trabalhos","pasta"]},
-        {"code":"AT","title":"Abrir Terminal","description":"Abre o Terminal do macOS.","keywords":["terminal","macos","shell"]},
-        {"code":"APP","title":"Abrir Aplicativos","description":"Abre a pasta Aplicativos do macOS.","keywords":["applications","aplicativos","pasta"]},
-        {"code":"ANY","title":"Abrir AnyDesk","description":"Mostra a lista de máquinas cadastradas e abre a conexão escolhida diretamente.","keywords":["anydesk","remoto","máquina","conexão"]}
-      ]
-    },
-    {
-      "id": "ferramentas",
-      "title": "FERRAMENTAS",
-      "items": [
-        {"code":"BAR","title":"Gerador de Códigos","description":"Abre a ferramenta de códigos de barras, QR Code e leitura de códigos.","keywords":["ean","qr","barcode","código"]},
-        {"code":"INT","title":"Intercalar PDF","description":"Intercala páginas de frente com um verso único para formar o PDF final.","keywords":["pdf","intercalar","frente","verso"]},
-        {"code":"MON","title":"Calcular Montagem","description":"Calcula a melhor e a segunda melhor montagem, com margens, sangria, espaço, pinça, rotação e aproveitamento.","keywords":["montagem","papel","aproveitamento","medidas","planos"]},
-        {"code":"MP","title":"MUPI Print","description":"Executa o fluxo MUPI Print configurado no macOS.","keywords":["mupi","print","impressão"]}
+        {"code":"/cliente","title":"Abrir pasta de cliente","description":"Busca rapidamente uma pasta e abre o primeiro resultado. Exemplo: /rota","keywords":["cliente","pasta","abrir","finder"]},
+        {"code":"//trabalho","title":"Pesquisar em Trabalhos","description":"Abre uma busca do Finder dentro de /Volumes/Trabalhos. Exemplo: //convite","keywords":["busca","finder","trabalhos","arquivo"]},
+        {"code":"#app","title":"Fechar aplicativo aberto","description":"Pesquisa um aplicativo em execução e fecha o primeiro resultado. Exemplo: #acrobat","keywords":["fechar","aplicativo","processo"]},
+        {"code":"#git mensagem","title":"Enviar alterações ao GitHub","description":"Executa add, commit e push usando a mensagem informada.","keywords":["git","github","commit","push"]},
+        {"code":"#zip","title":"Criar ZIP do projeto","description":"Gera uma cópia limpa do projeto na Área de Trabalho.","keywords":["zip","backup","projeto"]},
+        {"code":"#code","title":"Abrir projeto no VS Code","description":"Abre a pasta atual do M87 Terminal no Visual Studio Code.","keywords":["vscode","editor","código"]},
+        {"code":"##","title":"Reiniciar o Terminal","description":"Fecha a instância atual e abre o M87 Terminal novamente.","keywords":["reload","reiniciar"]},
+        {"code":"CÁLCULO","title":"Calculadora direta","description":"Digite uma expressão matemática no campo do Terminal. Exemplo: 1250 / 35","keywords":["conta","matemática","resultado"]}
       ]
     },
     {
       "id": "pdf",
       "title": "PDF",
-      "intro": "Estas ações aparecem quando um PDF é arrastado para o Terminal.",
+      "intro": "Estas ações aparecem quando um PDF está ativo.",
       "items": [
-        {"code":"INFO","title":"Informações do PDF","description":"Mostra nome, peso, orientação, datas, número de páginas, medidas, separações de cor, Pantones, marcas de corte e uma prévia.","keywords":["pdf","informações","pantone","medidas","preview"]},
-        {"code":"CURVAS","title":"Converter Fontes em Curvas","description":"Converte os textos do PDF em contornos e permite salvar o resultado sobre o arquivo ou com outro nome.","keywords":["pdf","fontes","curvas","contornos"]},
-        {"code":"REDUZIR","title":"Reduzir PDF","description":"Reduz o tamanho do arquivo PDF mantendo o fluxo dentro do Terminal.","keywords":["pdf","compactar","reduzir","tamanho"]},
-        {"code":"RENOMEAR","title":"Renomear PDF","description":"Abre a caixa de renomeação com os padrões usados no trabalho.","keywords":["pdf","nome","renomear"]}
+        {"code":"INFO","title":"Informações do PDF","description":"Mostra medidas, páginas, cores, Pantones, marcas de corte e prévia.","keywords":["informações","pantone","medidas","preview"]},
+        {"code":"CURVAS","title":"Converter fontes em curvas","description":"Converte os textos do PDF em contornos e salva o resultado.","keywords":["fontes","contornos"]},
+        {"code":"REDUZIR","title":"Reduzir PDF","description":"Ação reservada para reduzir o tamanho do arquivo PDF.","keywords":["compactar","tamanho"]},
+        {"code":"RENOMEAR","title":"Renomear PDF","description":"Abre a renomeação com os padrões usados no trabalho.","keywords":["nome","padrão"]}
       ]
     },
     {
       "id": "atalhos",
       "title": "ATALHOS",
       "items": [
-        {"code":"ENTER","title":"Executar","description":"Executa o comando digitado ou a sugestão atualmente selecionada.","keywords":["teclado","executar"]},
-        {"code":"↑  ↓","title":"Navegar nas sugestões","description":"Move a seleção pela lista de comandos, aplicativos, máquinas ou ações disponíveis.","keywords":["setas","sugestões","navegar"]},
-        {"code":"ESC","title":"Cancelar ou limpar contexto","description":"Fecha sugestões e remove o PDF ativo ou a operação atual.","keywords":["cancelar","limpar","pdf"]},
-        {"code":"CLIQUE","title":"Executar pela lista","description":"Clique no código ou na descrição de um comando visível para executá-lo.","keywords":["mouse","comando"]},
-        {"code":"DRAG & DROP","title":"Ativar ferramentas de PDF","description":"Arraste um PDF para qualquer área do Terminal para ativar as opções específicas do arquivo.","keywords":["arrastar","pdf","arquivo"]}
-      ]
-    },
-    {
-      "id": "desenvolvedor",
-      "title": "DESENVOLVEDOR",
-      "intro": "Comandos ocultos. Eles não aparecem na grade principal do Terminal.",
-      "items": [
-        {"code":"#git \"mensagem\"","title":"Enviar alterações ao GitHub","description":"Executa git add, cria o commit com a mensagem informada e faz git push.","keywords":["git","github","commit","push"]},
-        {"code":"#zip","title":"Gerar ZIP do projeto","description":"Cria um ZIP completo e atualizado do projeto M87 Terminal na Área de Trabalho.","keywords":["zip","backup","projeto"]},
-        {"code":"#code","title":"Abrir no VS Code","description":"Abre a pasta atual do projeto no Visual Studio Code.","keywords":["vscode","código","editor"]},
-        {"code":"#RR","title":"Recarregar Terminal","description":"Fecha a instância atual e abre novamente o M87 Terminal.","keywords":["reload","reiniciar","terminal"]},
-        {"code":"#nome","title":"Fechar aplicativo","description":"Pesquise um aplicativo aberto pelo nome e pressione Enter para encerrá-lo.","keywords":["fechar","aplicativo","processo"]},
-        {"code":"//texto","title":"Buscar em Trabalhos","description":"Pesquisa arquivos e pastas dentro de Trabalhos e abre o resultado no Finder.","keywords":["finder","buscar","trabalhos","arquivo"]}
+        {"code":"ENTER","title":"Executar","description":"Executa o comando digitado ou a sugestão selecionada.","keywords":["teclado"]},
+        {"code":"↑ / ↓","title":"Navegar","description":"Move a seleção pela lista de sugestões.","keywords":["setas","sugestões"]},
+        {"code":"ESC","title":"Cancelar ou limpar","description":"Fecha sugestões, cancela a operação atual ou remove o PDF ativo.","keywords":["cancelar","limpar"]},
+        {"code":"CLIQUE","title":"Executar pela lista","description":"Clique em um comando visível para executá-lo.","keywords":["mouse"]},
+        {"code":"ARRASTAR","title":"Ativar PDF","description":"Arraste um PDF para qualquer área da janela.","keywords":["drag","drop"]},
+        {"code":"</>","title":"Abrir VS Code","description":"Botão superior que abre o projeto no VS Code.","keywords":["botão","código"]},
+        {"code":"▤","title":"Abrir Reference","description":"Botão superior que abre esta documentação.","keywords":["livro","ajuda","documentação"]},
+        {"code":"↻","title":"Reiniciar Terminal","description":"Botão superior que recarrega o aplicativo.","keywords":["reload","botão"]},
+        {"code":"—","title":"Minimizar","description":"Botão superior que minimiza a janela.","keywords":["botão","janela"]}
       ]
     },
     {
@@ -104,15 +109,6 @@
       "title": "CHANGELOG",
       "intro": "Data e descrição dos commits enviados ao GitHub.",
       "dynamic": "git"
-    },
-    {
-      "id": "sobre",
-      "title": "SOBRE",
-      "items": [
-        {"code":"M87 TERMINAL","title":"v1.0.0","description":"Criado em 03 de julho de 2026 para reunir atalhos, automações e ferramentas de pré-impressão em uma única interface.","keywords":["versão","criado","história"]},
-        {"code":"STACK","title":"Python + Qt","description":"Aplicativo desenvolvido em Python com interface construída em PySide6/Qt.","keywords":["python","qt","pyside6"]},
-        {"code":"AUTORIA","title":"Mariane Jacob","description":"Designed and developed as part of M87 Tools.","keywords":["mariane","autora","m87"]}
-      ]
     }
   ]
 }
