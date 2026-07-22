@@ -25,31 +25,43 @@ def normalize(text):
     )
 
 
+def letter_folder(letter):
+    """Retorna a pasta alfabética exata dentro de Trabalhos (A, B, C...)."""
+    wanted = normalize(letter)
+
+    if len(wanted) != 1 or not wanted.isalpha():
+        return None
+
+    if not TRABALHOS_PATH.exists():
+        return None
+
+    for folder in TRABALHOS_PATH.iterdir():
+        if folder.is_dir() and normalize(folder.name) == wanted:
+            return folder
+
+    return TRABALHOS_PATH / wanted.upper()
+
+
 def first_letter_folder(query):
     query = normalize(query)
 
     if not query:
         return None
 
-    wanted = query[0]
-
-    if not TRABALHOS_PATH.exists():
-        return None
-
-    for folder in TRABALHOS_PATH.iterdir():
-        if folder.is_dir() and normalize(folder.name).startswith(wanted):
-            return folder
-
-    return TRABALHOS_PATH / wanted.upper()
+    return letter_folder(query[0])
 
 
-def search_fast_client(query):
+def search_fast_client(query, folder_letter=None):
     query = normalize(query)
 
     if not query:
         return []
 
-    folder = first_letter_folder(query)
+    folder = (
+        letter_folder(folder_letter)
+        if folder_letter
+        else first_letter_folder(query)
+    )
 
     if not folder or not folder.exists():
         return []
@@ -69,6 +81,15 @@ def search_fast_client(query):
 def open_path(path):
     if not path:
         return False
+
+    path = Path(path)
+
+    if path.is_dir():
+        try:
+            from core.recent_folders import record_recent_folder
+            record_recent_folder(path)
+        except Exception:
+            pass
 
     subprocess.Popen(
         ["open", str(path)],

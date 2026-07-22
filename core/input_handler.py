@@ -2,7 +2,12 @@ from PySide6.QtCore import QTimer
 
 from core.app_search import open_application, search_applications
 from core.calculator import calculate, is_calculation
-from core.client_search import finder_search, open_path, search_fast_client
+from core.client_search import (
+    finder_search,
+    letter_folder,
+    open_path,
+    search_fast_client,
+)
 from core.developer_tools import publish_git_update
 from core.project_zip import create_project_zip
 from core.running_apps import close_running_application, search_running_applications
@@ -168,10 +173,52 @@ def handle_input_text(app, text):
 
     if text.startswith("/") and not text.startswith("/app"):
         query = text[1:].strip()
-        results = search_fast_client(query)
 
         app.input.clear()
         app.clear_suggestions()
+
+        # / sozinho = abre a pasta Trabalhos.
+        if not query:
+            from core.client_search import TRABALHOS_PATH
+
+            if TRABALHOS_PATH.exists():
+                open_path(TRABALHOS_PATH)
+            else:
+                show_temporary_placeholder(
+                    app.input,
+                    "pasta Trabalhos não disponível"
+                )
+
+            return
+
+        # /A = abre diretamente a pasta alfabética A.
+        # /R Rio Ave = busca "Rio Ave" somente dentro da pasta R.
+        # /Rio Ave = mantém a busca rápida normal em Trabalhos.
+        parts = query.split(maxsplit=1)
+        first_part = parts[0] if parts else ""
+        is_letter_scope = len(first_part) == 1 and first_part.isalpha()
+
+        if is_letter_scope and len(parts) == 1:
+            folder = letter_folder(first_part)
+
+            if folder and folder.exists():
+                open_path(folder)
+            else:
+                show_temporary_placeholder(
+                    app.input,
+                    f"pasta {first_part.upper()} não encontrada"
+                )
+
+            return
+
+        if is_letter_scope and len(parts) == 2:
+            scoped_query = parts[1].strip()
+            results = search_fast_client(
+                scoped_query,
+                folder_letter=first_part,
+            )
+        else:
+            results = search_fast_client(query)
 
         if results:
             open_path(results[0])

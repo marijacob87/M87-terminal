@@ -1,121 +1,128 @@
 [
-    {
-        "section": "Sistema",
-        "code": "BM",
-        "label": "Bloquear Mac",
-        "type": "shell",
-        "value": "pmset displaysleepnow"
-    },
-    {
-        "section": "Sistema",
-        "code": "MR",
-        "label": "Morning Routine",
-        "type": "internal",
-        "value": "morning_routine"
-    },
-    {
-        "section": "Sistema",
-        "code": "MIN",
-        "label": "Minimizar Tudo",
-        "type": "system",
-        "value": "minimize_all"
-    },
-    {
-        "section": "Sistema",
-        "code": "RES",
-        "label": "Reiniciar Último App",
-        "type": "internal",
-        "value": "restart_last_app"
-    },
-    {
-        "section": "Sistema",
-        "code": "MU",
-        "label": "Montar Unidades",
-        "type": "internal",
-        "value": "mount_volumes"
-    },
-    {
-        "section": "Sistema",
-        "code": "CL",
-        "label": "Limpar Desktop",
-        "type": "system",
-        "value": "clean_desktop"
-    },
-    {
-        "section": "Sistema",
-        "code": "END",
-        "label": "Desligar Mac",
-        "type": "system",
-        "value": "shutdown"
-    },
-    {
-        "section": "Sistema",
-        "code": "KILL",
-        "label": "Encerrar Sessão",
-        "type": "system",
-        "value": "kill_all"
-    },
-    {
-        "section": "Abrir",
-        "code": "AD",
-        "label": "Abrir Downloads",
-        "type": "folder",
-        "value": "~/Downloads"
-    },
-    {
-        "section": "Abrir",
-        "code": "AM",
-        "label": "Abrir #Mariane",
-        "type": "folder",
-        "value": "/Volumes/Trabalhos/# MARIANE"
-    },
-    {
-        "section": "Abrir",
-        "code": "AT",
-        "label": "Abrir Terminal",
-        "type": "app",
-        "value": "Terminal"
-    },
-    {
-        "section": "Abrir",
-        "code": "APP",
-        "label": "Abrir Aplicativos",
-        "type": "folder",
-        "value": "/Applications"
-    },
-    {
-        "section": "Abrir",
-        "code": "ANY",
-        "label": "Abrir AnyDesk",
-        "type": "internal",
-        "value": "anydesk_menu"
-    },
-    {
-        "section": "Ferramentas",
-        "code": "BAR",
-        "label": "Gerador de Códigos",
-        "type": "internal",
-        "value": "code_generator"
-    },
-    {
-        "section": "Ferramentas",
-        "code": "INT",
-        "label": "Intercalar PDF",
-        "type": "shell",
-        "value": "\".venv/bin/python3\" scripts/intercalar_pdf.py"
-    },
-    {
-        "section": "Ferramentas",
-        "code": "MON",
-        "label": "Calcular Montagem",
-        "type": "internal",
-        "value": "montagem"
-    },
-    {
-        "section": "Ferramentas",
-        "code": "MP",
-        "label": "MUPI Print",
-        "type": "shortcut",
-        "value": "MUPI Print"
-    }
+  {
+    "section": "Sistema",
+    "code": "BM",
+    "label": "Bloquear Mac",
+    "type": "shell",
+    "value": "pmset displaysleepnow"
+  },
+  {
+    "section": "Sistema",
+    "code": "MR",
+    "label": "Morning Routine",
+    "type": "internal",
+    "value": "morning_routine"
+  },
+  {
+    "section": "Sistema",
+    "code": "MIN",
+    "label": "Minimizar Tudo",
+    "type": "system",
+    "value": "minimize_all"
+  },
+  {
+    "section": "Sistema",
+    "code": "MU",
+    "label": "Montar Unidades",
+    "type": "internal",
+    "value": "mount_volumes"
+  },
+  {
+    "section": "Sistema",
+    "code": "CL",
+    "label": "Limpar Desktop",
+    "type": "system",
+    "value": "clean_desktop"
+  },
+  {
+    "section": "Sistema",
+    "code": "END",
+    "label": "Desligar Mac",
+    "type": "system",
+    "value": "shutdown"
+  },
+  {
+    "section": "Sistema",
+    "code": "KILL",
+    "label": "Encerrar Sessão",
+    "type": "system",
+    "value": "kill_all"
+  },
+  {
+    "section": "Abrir",
+    "code": "RES",
+    "label": "Pastas Recentes",
+    "type": "internal",
+    "value": "recent_folders"
+  },
+  {
+    "section": "Abrir",
+    "code": "AD",
+    "label": "Abrir Downloads",
+    "type": "folder",
+    "value": "~/Downloads"
+  },
+  {
+    "section": "Abrir",
+    "code": "AM",
+    "label": "Abrir #Mariane",
+    "type": "folder",
+    "value": "/Volumes/Trabalhos/# MARIANE"
+  },
+  {
+    "section": "Abrir",
+    "code": "AT",
+    "label": "Abrir Terminal",
+    "type": "app",
+    "value": "Terminal"
+  },
+  {
+    "section": "Abrir",
+    "code": "APP",
+    "label": "Abrir Aplicativos",
+    "type": "folder",
+    "value": "/Applications"
+  },
+  {
+    "section": "Abrir",
+    "code": "ANY",
+    "label": "Abrir AnyDesk",
+    "type": "internal",
+    "value": "anydesk_menu"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "BAR",
+    "label": "Gerador de Códigos",
+    "type": "internal",
+    "value": "code_generator"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "INT",
+    "label": "Intercalar PDF",
+    "type": "shell",
+    "value": "\".venv/bin/python3\" scripts/intercalar_pdf.py"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "MON",
+    "label": "Calcular Montagem",
+    "type": "internal",
+    "value": "montagem"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "IMP",
+    "label": "Montar Imposição",
+    "type": "internal",
+    "value": "imposition"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "MP",
+    "label": "MUPI Print",
+    "type": "shortcut",
+    "value": "MUPI Print"
+  }
 ]

@@ -23,8 +23,8 @@ class SuggestionsBox(QWidget):
     # DADOS
     # =========================
 
-    def set_items(self, items):
-        self.items = items[:6]
+    def set_items(self, items, limit=6):
+        self.items = items[:limit]
         self.selected_index = 0
         self.render()
 
@@ -71,6 +71,9 @@ class SuggestionsBox(QWidget):
 
             if item.get("type") in ("anydesk_machine", "anydesk_app"):
                 return f"{prefix} {item.get('name', 'AnyDesk')}"
+
+            if item.get("type") == "recent_folder":
+                return f"{prefix} {item.get('name', 'Pasta')}"
 
             if "code" in item:
                 code = item.get("code", "")

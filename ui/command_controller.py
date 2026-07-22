@@ -10,6 +10,7 @@ from core.app_search import open_application
 from core.app_tracker import restart_app
 from core.client_search import open_path
 from core.running_apps import close_running_application
+from core.recent_folders import get_recent_folders
 from core.config import BREAKPOINT_WIDTH
 from core.executor import execute
 from core.system_actions import get_last_kill_report
@@ -139,6 +140,10 @@ class CommandControllerMixin:
                 open_anydesk_app()
                 return True
 
+            if selected_type == "recent_folder":
+                open_path(selected.get("path", ""))
+                return True
+
             self.execute_command(
                 selected.get("code", "")
             )
@@ -237,7 +242,31 @@ class CommandControllerMixin:
             self._open_anydesk_menu()
             return
 
-        if code in ("RE", "RES"):
+        if code == "RES":
+            from PySide6.QtCore import QTimer
+
+            folders = get_recent_folders(limit=10)
+
+            self._clear_input_silently()
+            self.clear_suggestions()
+
+            if folders:
+                self.suggestions.set_items(folders, limit=10)
+                self.input.setFocus()
+                QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+                QTimer.singleShot(30, self.ajustar_altura_ao_conteudo)
+            else:
+                self.session_result_label.setText(
+                    "⚠ O Finder não devolveu nenhuma pasta recente"
+                )
+                self.session_result_label.show()
+                QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+                QTimer.singleShot(6000, self.clear_session_result)
+
+            return
+
+        # RE continua disponível como atalho oculto para reiniciar o último app.
+        if code == "RE":
             from PySide6.QtCore import QTimer
 
             app = self.last_real_app
@@ -267,6 +296,14 @@ class CommandControllerMixin:
             from ui.montagem_dialog import MontagemDialog
 
             dialog = MontagemDialog(self)
+            dialog.exec()
+            self.input.setFocus()
+            return
+
+        if code == "IMP":
+            from ui.imposition_dialog import ImpositionDialog
+
+            dialog = ImpositionDialog(self)
             dialog.exec()
             self.input.setFocus()
             return

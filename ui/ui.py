@@ -47,12 +47,24 @@ class M87Term(
         self.app_tracker_timer.timeout.connect(self.update_last_real_app)
         self.app_tracker_timer.start(1000)
 
+        self.finder_folder_timer = QTimer(self)
+        self.finder_folder_timer.timeout.connect(self.sync_recent_finder_folders)
+        self.finder_folder_timer.start(2500)
+
         self.setup_window()
         self.build_ui()
         self.apply_style()
         self.rebuild_command_grid()
         self.start_timers()
         self.clear_suggestions()
+
+
+    def sync_recent_finder_folders(self):
+        try:
+            from core.recent_folders import sync_finder_history
+            sync_finder_history()
+        except Exception:
+            pass
 
     def load_commands(self):
         with open(COMMANDS_FILE, "r", encoding="utf-8") as file:
