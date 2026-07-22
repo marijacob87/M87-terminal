@@ -8,6 +8,8 @@ from pathlib import Path
 
 from AppKit import NSApplicationActivationPolicyRegular, NSWorkspace
 
+from core.trash_manager import empty_trash as _stable_empty_trash
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -455,107 +457,9 @@ def _empty_folder(folder: Path) -> bool:
     return ok
 
 
-def _trash_locations():
-    locations = [
-        Path.home() / ".Trash",
-    ]
-
-    uid = os.getuid()
-    volumes = Path("/Volumes")
-
-    if volumes.exists():
-        try:
-            for volume in volumes.iterdir():
-                locations.extend(
-                    [
-                        volume / ".Trashes" / str(uid),
-                        volume / ".Trash" / str(uid),
-                    ]
-                )
-
-        except OSError:
-            pass
-
-    return list(dict.fromkeys(locations))
-
-
-def _finder_trash_count():
-    try:
-        result = subprocess.run(
-            [
-                "osascript",
-                "-e",
-                (
-                    'tell application "Finder" '
-                    "to return count of items of trash"
-                ),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-
-        if result.returncode == 0:
-            return int(
-                result.stdout.strip() or "0"
-            )
-
-    except (
-        ValueError,
-        subprocess.TimeoutExpired,
-        OSError,
-    ):
-        pass
-
-    return None
-
-
 def empty_trash() -> bool:
-    """
-    Esvazia a Lixeira pelo Finder e usa acesso direto como fallback.
-    """
-    finder_ok = _run_osascript(
-        'tell application "Finder" to empty trash',
-        timeout=30,
-    )
-
-    if finder_ok:
-        deadline = time.monotonic() + 8.0
-
-        while time.monotonic() < deadline:
-            count = _finder_trash_count()
-
-            if count == 0:
-                return True
-
-            time.sleep(0.25)
-
-    # Fallback para volumes externos ou caso o Finder não responda.
-    direct_ok = True
-
-    for trash in _trash_locations():
-        direct_ok = (
-            _empty_folder(trash)
-            and direct_ok
-        )
-
-    count = _finder_trash_count()
-
-    success = (
-        direct_ok
-        and count in (0, None)
-    )
-
-    if not success:
-        print(
-            "[CL] A Lixeira não pôde ser totalmente limpa. "
-            "Ative Automação > Finder e Acesso Total ao Disco "
-            "para o M87 TERM."
-        )
-
-    return success
-
+    """Usa o helper persistente do M87 para esvaziar a Lixeira."""
+    return _stable_empty_trash()
 
 def clean_safe_caches() -> bool:
     """
@@ -579,18 +483,16 @@ def clean_safe_caches() -> bool:
 
 
 def clean_desktop_and_trash() -> bool:
-    """
-    Limpa o Desktop e depois esvazia a Lixeira.
-    """
+    """Limpa o Desktop e a Lixeira usando uma única rotina central."""
+    # A Lixeira vem primeiro para que qualquer pedido de permissão do macOS
+    # apareça antes da limpeza do Desktop e para evitar falhas silenciosas.
+    trash_ok = empty_trash()
+
     desktop_ok = _empty_folder(
         Path.home() / "Desktop"
     )
 
-    trash_ok = empty_trash()
-
-    _run_osascript(
-        'tell application "Finder" to update trash',
-        timeout=5,
-    )
+    if not trash_ok:
+        print("[CL] Desktop limpo, mas a Lixeira não pôde ser esvaziada.")
 
     return desktop_ok and trash_ok

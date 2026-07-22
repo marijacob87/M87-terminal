@@ -212,7 +212,7 @@
             {
               "code": "IMP",
               "title": "Montar Imposição",
-              "description": "Abre o impositor PDF. Arraste um PDF, escolha papel, margens, espaçamento, repetição ou sequência, confira a prévia em tempo real e salve a montagem vetorial no Desktop.",
+              "description": "Abre o impositor PDF em modo único ou lote. Arraste um ou vários PDFs, aplique o mesmo papel, margens, espaçamento, marcas e material, defina quantidades individuais ou aplique uma quantidade a todos, confira cada montagem e salve os PDFs separadamente no Desktop.",
               "keywords": [
                 "imposição",
                 "impose",
@@ -222,7 +222,11 @@
                 "bleed",
                 "marcas de corte",
                 "sequencial",
-                "repetir"
+                "repetir",
+                "lote",
+                "vários PDFs",
+                "quantidade individual",
+                "processar todos"
               ]
             },
             {

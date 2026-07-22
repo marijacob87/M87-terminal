@@ -455,8 +455,58 @@ def automatic_filename(source_path: str | os.PathLike[str], quantity: int, plans
     stem = _safe_filename_part(Path(source_path).stem, "Arquivo")
     clean_material = _safe_filename_part(material, "Material")
     date_text = datetime.now().strftime("%d%m%Y")
-    return f"{quantity}un {plans}Planos - {clean_material} - {stem} X_{date_text}.pdf"
+    return f"{quantity}un {plans}pl_{clean_material}_{stem}_{date_text}.pdf"
 
+
+def automatic_sheet_label(
+    source_path: str | os.PathLike[str],
+    quantity: int,
+    plans: int,
+    material: str,
+) -> str:
+    """Texto padrão usado para identificar cada folha imposta."""
+    stem = _safe_filename_part(Path(source_path).stem, "Arquivo")
+    clean_material = _safe_filename_part(material, "Material")
+    date_text = datetime.now().strftime("%d/%m/%Y")
+    return f"{quantity}un • {plans} Planos • {clean_material} • {stem} • {date_text}"
+
+
+def _draw_sheet_label(
+    page: fitz.Page,
+    layout: LayoutOption,
+    text: str,
+    page_number: int,
+    total_pages: int,
+) -> None:
+    """Desenha uma única identificação no topo direito da folha imposta."""
+    label = " ".join(str(text).split())
+    if not label:
+        return
+    if total_pages > 2:
+        label = f"{label} • {page_number}/{total_pages}"
+
+    font_name = "helv"
+    font_size = 7.0
+    right_x = (layout.paper_width_mm - 10.0) * MM_TO_PT
+    text_width = fitz.get_text_length(label, fontname=font_name, fontsize=font_size)
+    left_x = max(3.0 * MM_TO_PT, right_x - text_width)
+
+    # A base fica dentro da faixa superior livre e termina 0,5 mm antes
+    # do primeiro TrimBox. Com a margem padrão de 5 mm, o texto fica
+    # visualmente a cerca de 3 mm do topo sem nunca entrar na arte.
+    first_trim_top = layout.start_y_mm * MM_TO_PT
+    baseline_y = min(4.2 * MM_TO_PT, first_trim_top - 0.5 * MM_TO_PT)
+    if baseline_y - font_size < 0.5 * MM_TO_PT:
+        return
+
+    page.insert_text(
+        fitz.Point(left_x, baseline_y),
+        label,
+        fontname=font_name,
+        fontsize=font_size,
+        color=(0.0, 0.0, 0.0),
+        overlay=True,
+    )
 
 def export_imposition(
     source_path: str | os.PathLike[str],
@@ -467,6 +517,8 @@ def export_imposition(
     quantity_each: int,
     crop_marks: bool = True,
     fill_order: str = "rows",
+    identify_sheets: bool = True,
+    sheet_label: str = "",
 ) -> ExportSummary:
     src_path = Path(source_path).expanduser().resolve()
     out_path = Path(output_path).expanduser().resolve()
@@ -499,7 +551,7 @@ def export_imposition(
             except Exception:
                 pass
 
-        for group in page_groups:
+        for output_index, group in enumerate(page_groups, start=1):
             out_page = output.new_page(width=paper_w_pt, height=paper_h_pt)
             for slot_index, source_index in enumerate(group):
                 if fill_order == "columns":
@@ -524,6 +576,11 @@ def export_imposition(
 
             if crop_marks:
                 _draw_outer_crop_marks(out_page, layout, gutter_mm)
+
+            if identify_sheets and sheet_label.strip():
+                _draw_sheet_label(
+                    out_page, layout, sheet_label, output_index, len(page_groups)
+                )
 
             # Páginas novas já nascem com MediaBox, CropBox, TrimBox e
             # BleedBox coincidentes com o tamanho completo da folha.
