@@ -235,3 +235,7 @@ Executa uma ação interna do próprio M87 TERM, como reload.
 - Contexto para múltiplos arquivos
 - Macros
 - Plugins
+
+## Teste do atualizador automático
+
+Atualização automática testada em 23/07/2026. Se este texto estiver presente, o pacote foi instalado corretamente.

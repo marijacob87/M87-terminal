@@ -122,6 +122,10 @@ class CommandControllerMixin:
                 self.execute_pdf_action(selected)
                 return True
 
+            if selected_type == "update_action":
+                self.install_pending_update()
+                return True
+
             if selected_type == "application":
                 open_application(selected)
                 return True
@@ -383,6 +387,12 @@ class CommandControllerMixin:
         text = self.input.text().strip()
         upper_text = text.upper()
 
+        if getattr(self, "current_update", None):
+            if self.execute_selected_suggestion():
+                return
+            self.install_pending_update()
+            return
+
         if self.current_pdf:
             pdf_action = next(
                 (
@@ -434,6 +444,58 @@ class CommandControllerMixin:
             return
 
         handle_input_text(self, text)
+
+    def install_pending_update(self):
+        package = getattr(self, "current_update", None)
+        if package is None:
+            return
+
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication
+        from core.update_manager import UpdateError, install_update
+
+        self._clear_input_silently()
+        self.clear_suggestions()
+        progress_lines = []
+
+        def show_progress(message):
+            progress_lines.append(message)
+            # Mantém a tela compacta durante pacotes maiores.
+            visible = progress_lines[-9:]
+            self.session_result_label.setText("\n".join(visible))
+            self.session_result_label.show()
+            self.ajustar_altura_ao_conteudo()
+            QApplication.processEvents()
+
+        try:
+            installed = install_update(package, progress=show_progress)
+        except UpdateError as error:
+            self.session_result_label.setText(
+                f"⚠ Atualização cancelada\n{error}"
+            )
+            self.session_result_label.show()
+            self.current_update = None
+            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+            QTimer.singleShot(10000, self.clear_session_result)
+            self.input.setFocus()
+            return
+
+        self.current_update = None
+        self.active_file_label.clear()
+        self.active_file_label.hide()
+        self.session_result_label.setText(
+            f"✓ Atualização concluída\n"
+            f"{installed} arquivos atualizados\n\n"
+            f"Reiniciando..."
+        )
+        self.session_result_label.show()
+        self.ajustar_altura_ao_conteudo()
+        QApplication.processEvents()
+
+        if package.restart:
+            QTimer.singleShot(900, self.restart_app)
+        else:
+            QTimer.singleShot(8000, self.clear_session_result)
 
     def restart_app(self):
         self.save_current_state()

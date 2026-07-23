@@ -31,6 +31,7 @@ class M87Term(
 
         self.current_pdf = None
         self.current_pdf_info = None
+        self.current_update = None
 
         self.weather_temp = "--°C"
         self.status_data = {}

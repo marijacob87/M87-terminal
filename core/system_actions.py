@@ -1,13 +1,12 @@
 import gc
 import os
-import shutil
-import stat
 import subprocess
 import time
 from pathlib import Path
 
 from AppKit import NSApplicationActivationPolicyRegular, NSWorkspace
 
+from core.file_cleanup import esvaziar_pasta, limpar_caches_python
 from core.trash_manager import empty_trash as _stable_empty_trash
 
 
@@ -97,17 +96,6 @@ def _is_vmware(app) -> bool:
     )
 
 
-def _quit_vmware_gracefully():
-    """
-    O comando direto ao VMware é mais confiável do que enviar apenas
-    terminate() ao processo identificado pelo NSWorkspace.
-    """
-    _run_osascript(
-        'tell application "VMware Fusion" to quit',
-        timeout=8,
-    )
-
-
 def _release_safe_memory() -> bool:
     """
     Libera apenas memória ociosa do próprio M87.
@@ -164,24 +152,6 @@ def _fresh_regular_apps_by_pid():
             continue
 
     return apps
-
-
-def _wait_until_closed(target_pids, timeout: float):
-    """
-    Espera globalmente pelo encerramento dos processos e retorna apenas
-    os PIDs que continuam realmente abertos.
-    """
-    deadline = time.monotonic() + timeout
-    remaining = set(target_pids)
-
-    while remaining and time.monotonic() < deadline:
-        running = _fresh_regular_apps_by_pid()
-        remaining.intersection_update(running.keys())
-
-        if remaining:
-            time.sleep(0.12)
-
-    return remaining
 
 
 def _pid_is_really_running(pid: int) -> bool:
@@ -354,7 +324,7 @@ def kill_all_apps() -> bool:
     )
 
     # Limpeza da sessão.
-    desktop_ok = _empty_folder(
+    desktop_ok = esvaziar_pasta(
         Path.home() / "Desktop"
     )
 
@@ -402,84 +372,15 @@ def kill_all_apps() -> bool:
     )
 
 
-def _make_writable(path: Path):
-    try:
-        current_mode = path.stat().st_mode
-        path.chmod(current_mode | stat.S_IWUSR)
-    except OSError:
-        pass
-
-
-def _remove_path(path: Path) -> bool:
-    try:
-        if path.is_symlink() or path.is_file():
-            _make_writable(path)
-            path.unlink(missing_ok=True)
-
-        elif path.is_dir():
-            shutil.rmtree(
-                path,
-                onerror=lambda function, value, exception: (
-                    _make_writable(Path(value)),
-                    function(value),
-                ),
-            )
-
-        return True
-
-    except Exception as error:
-        print(
-            f"[CL] Não foi possível apagar "
-            f"{path}: {error}"
-        )
-        return False
-
-
-def _empty_folder(folder: Path) -> bool:
-    if not folder.exists():
-        return True
-
-    try:
-        items = list(folder.iterdir())
-
-    except Exception as error:
-        print(
-            f"[CL] Não foi possível abrir "
-            f"{folder}: {error}"
-        )
-        return False
-
-    ok = True
-
-    for item in items:
-        ok = _remove_path(item) and ok
-
-    return ok
-
 
 def empty_trash() -> bool:
     """Usa o helper persistente do M87 para esvaziar a Lixeira."""
     return _stable_empty_trash()
 
+
 def clean_safe_caches() -> bool:
-    """
-    Remove somente caches Python do projeto M87.
-
-    Não percorre caches gerais do macOS nem temporários de outros apps.
-    """
-    ok = True
-
-    for cache_dir in list(
-        PROJECT_ROOT.rglob("__pycache__")
-    ):
-        ok = _remove_path(cache_dir) and ok
-
-    for pyc_file in list(
-        PROJECT_ROOT.rglob("*.pyc")
-    ):
-        ok = _remove_path(pyc_file) and ok
-
-    return ok
+    """Remove somente os caches Python existentes dentro do projeto M87."""
+    return limpar_caches_python(PROJECT_ROOT)
 
 
 def clean_desktop_and_trash() -> bool:
@@ -488,7 +389,7 @@ def clean_desktop_and_trash() -> bool:
     # apareça antes da limpeza do Desktop e para evitar falhas silenciosas.
     trash_ok = empty_trash()
 
-    desktop_ok = _empty_folder(
+    desktop_ok = esvaziar_pasta(
         Path.home() / "Desktop"
     )
 

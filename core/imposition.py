@@ -65,12 +65,12 @@ def _rect_close(a: fitz.Rect, b: fitz.Rect, tolerance_pt: float = 0.15) -> bool:
 
 
 def effective_bleed_rect(page: fitz.Page) -> fitz.Rect:
-    """Return the complete original BleedBox, limited only by MediaBox."""
+    """Retorna a BleedBox original completa, limitada apenas pela MediaBox."""
     return fitz.Rect(page.bleedbox) & fitz.Rect(page.mediabox)
 
 
 def _property_ocg_names(doc: fitz.Document, page: fitz.Page) -> dict[str, str]:
-    """Map page marked-content property names to their OCG display names."""
+    """Relaciona propriedades de conteúdo marcado aos nomes visíveis das OCGs."""
     import re
 
     page_object = doc.xref_object(page.xref, compressed=False)
@@ -91,7 +91,7 @@ def _property_ocg_names(doc: fitz.Document, page: fitz.Page) -> dict[str, str]:
 
 
 def _remove_marked_content_blocks(stream: bytes, properties: set[str]) -> bytes:
-    """Remove complete /OC /Property BDC ... EMC blocks for selected layers."""
+    """Remove blocos completos /OC /Property BDC ... EMC das camadas selecionadas."""
     import re
 
     if not properties:
@@ -119,7 +119,7 @@ def _remove_marked_content_blocks(stream: bytes, properties: set[str]) -> bytes:
         while depth:
             nested = token_pattern.search(stream, scan)
             if not nested:
-                # Malformed stream: keep the untouched tail rather than damage artwork.
+                # Fluxo malformado: preserva o restante intacto para não danificar a arte.
                 output.extend(stream[match.start():])
                 return bytes(output)
             token = nested.group(0)
@@ -136,7 +136,7 @@ def _remove_marked_content_blocks(stream: bytes, properties: set[str]) -> bytes:
 
 
 def remove_original_printer_marks(doc: fitz.Document) -> None:
-    """Remove PDF mark layers while leaving artwork and the entire BleedBox intact.
+    """Remove camadas de marcas do PDF, preservando a arte e toda a BleedBox.
 
     Illustrator and other prepress applications commonly put crop / registration
     marks in Optional Content Groups named ``Marks & Bleeds``. Removing that
@@ -162,7 +162,7 @@ def remove_original_printer_marks(doc: fitz.Document) -> None:
 
 
 def open_pdf_for_imposition(path: str | os.PathLike[str]) -> fitz.Document:
-    """Open a PDF and remove original printer-mark layers in memory."""
+    """Abre o PDF e remove da memória as camadas originais de marcas gráficas."""
     doc = fitz.open(Path(path).expanduser().resolve())
     remove_original_printer_marks(doc)
     return doc
@@ -296,7 +296,7 @@ def build_custom_layout(
     rows: int,
     rotated: bool,
 ) -> LayoutOption | None:
-    """Build a centered manual grid, returning None when it does not fit."""
+    """Cria uma grade manual centralizada e retorna None quando ela não cabe."""
     if min(paper_width_mm, paper_height_mm, trim_width_mm, trim_height_mm) <= 0:
         return None
     if columns < 1 or rows < 1:
@@ -375,7 +375,7 @@ def _bleed_destination(trim_dest: fitz.Rect, source_trim: fitz.Rect, source_blee
         )
 
     # After clockwise 90° rotation: top->right, right->bottom,
-    # bottom->left and left->top.
+    # inferior→esquerda e esquerda→superior.
     return fitz.Rect(
         trim_dest.x0 - bottom,
         trim_dest.y0 - left,
@@ -392,7 +392,7 @@ def _draw_outer_crop_marks(
     distance_mm: float = 5.0,
     thickness_mm: float = 0.08,
 ) -> None:
-    """Draw cut marks only around the outside perimeter of the imposed grid.
+    """Desenha marcas de corte somente no perímetro externo da grade imposta.
 
     Every trim boundary is indicated, but the marks live only above/below or
     left/right of the complete montage, never between positioned pages.
@@ -543,8 +543,8 @@ def export_imposition(
             ]
 
         # PyMuPDF may otherwise honour a restrictive source CropBox even when
-        # clip=BleedBox is supplied. Expose the complete MediaBox in-memory so
-        # the original bleed remains available for vector placement.
+        # Como clip=BleedBox é fornecido, expõe temporariamente a MediaBox completa
+        # na memória para manter o bleed original disponível no posicionamento vetorial.
         for source_page in source:
             try:
                 source_page.set_cropbox(source_page.mediabox)

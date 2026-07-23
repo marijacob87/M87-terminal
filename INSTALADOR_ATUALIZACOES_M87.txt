@@ -1,0 +1,17 @@
+INSTALADOR DE ATUALIZAÇÕES M87
+
+Arquivos alterados:
+- core/update_manager.py (novo)
+- ui/ui.py
+- ui/pdf_context.py
+- ui/command_controller.py
+
+Depois desta instalação inicial, os próximos pacotes poderão ser arrastados
+como ZIP diretamente sobre o M87. Pressione ENTER para instalar ou ESC para
+cancelar.
+
+O backup fica em:
+backup/ultimo_backup.zip
+
+Somente o backup mais recente é mantido e ele contém apenas os arquivos que
+serão substituídos.
