@@ -8,7 +8,11 @@ from ui.rename_pdf_dialog import RenamePdfDialog
 
 
 class PdfContextMixin:
-    def ajustar_altura_ao_conteudo(self):
+    def ajustar_altura_ao_conteudo(
+        self,
+        atualizar_altura_normal=False,
+        permitir_reduzir=False,
+    ):
         """Ajusta a janela ao conteúdo variável sem comprimir o topo.
 
         Serve para sugestões, informações de PDF, resultados e rotinas. O
@@ -36,16 +40,19 @@ class PdfContextMixin:
             layout.minimumSize().height(),
         )
 
-        # A altura do central já inclui quase tudo, mas em alguns ciclos do Qt
-        # o último widget ainda não entrou no sizeHint. Somamos uma margem
-        # pequena e estável para impedir que o divisor ou as sugestões encostem.
+        # Folga mínima apenas para borda e arredondamento da janela.
+        # O redimensionador não participa mais do layout, portanto não cria
+        # espaço vazio sob a linha de comando.
         required_height = max(
             central.sizeHint().height(),
             central.minimumSizeHint().height(),
             layout_height + margins.top() + margins.bottom(),
-        ) + 12
+        ) + 4
 
-        new_height = max(self.normal_height, required_height)
+        if permitir_reduzir:
+            new_height = required_height
+        else:
+            new_height = max(self.normal_height, required_height)
         screen = self.screen()
 
         if screen is not None:
@@ -53,9 +60,14 @@ class PdfContextMixin:
             max_height = available.bottom() - self.y() - 12
             new_height = min(new_height, max_height)
 
+        target_height = max(self.minimumHeight(), new_height)
+
         self.auto_resizing = True
-        self.resize(self.width(), max(self.minimumHeight(), new_height))
+        self.resize(self.width(), target_height)
         self.auto_resizing = False
+
+        if atualizar_altura_normal:
+            self.normal_height = target_height
 
     def restaurar_altura_normal(self):
         self.auto_resizing = True

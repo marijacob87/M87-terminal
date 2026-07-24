@@ -92,17 +92,17 @@
   },
   {
     "section": "Ferramentas",
-    "code": "BAR",
-    "label": "Gerador de Códigos",
+    "code": "IMP",
+    "label": "Imposição",
     "type": "internal",
-    "value": "code_generator"
+    "value": "imposition"
   },
   {
     "section": "Ferramentas",
-    "code": "INT",
-    "label": "Intercalar PDF",
-    "type": "shell",
-    "value": "\".venv/bin/python3\" scripts/intercalar_pdf.py"
+    "code": "GEO",
+    "label": "Geometria",
+    "type": "internal",
+    "value": "geometry"
   },
   {
     "section": "Ferramentas",
@@ -113,10 +113,17 @@
   },
   {
     "section": "Ferramentas",
-    "code": "IMP",
-    "label": "Montar Imposição",
+    "code": "BAR",
+    "label": "Gerador de Códigos",
     "type": "internal",
-    "value": "imposition"
+    "value": "code_generator"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "INT",
+    "label": "Intercalar PDF",
+    "type": "shell",
+    "value": "\"$HOME/.venvs/m87_terminal/bin/python\" scripts/intercalar_pdf.py"
   },
   {
     "section": "Ferramentas",

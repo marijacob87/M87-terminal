@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 from core.config import (
     APP_HEIGHT,
@@ -17,11 +17,13 @@ DEFAULT_STATE = {
 
 
 def load_window_state():
-    if not os.path.exists(STATE_FILE):
+    state_path = Path(STATE_FILE)
+
+    if not state_path.exists():
         return DEFAULT_STATE
 
     try:
-        with open(STATE_FILE, "r", encoding="utf-8") as file:
+        with state_path.open("r", encoding="utf-8") as file:
             state = json.load(file)
 
         return {
@@ -43,5 +45,10 @@ def save_window_state(x, y, width, height):
         "height": int(height),
     }
 
-    with open(STATE_FILE, "w", encoding="utf-8") as file:
+    state_path = Path(STATE_FILE)
+    temporary_path = state_path.with_suffix(state_path.suffix + ".tmp")
+
+    with temporary_path.open("w", encoding="utf-8") as file:
         json.dump(state, file, indent=4)
+
+    temporary_path.replace(state_path)

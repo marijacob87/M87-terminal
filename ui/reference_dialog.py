@@ -134,10 +134,17 @@ class ReferenceDialog(QDialog):
         parent_layout.addWidget(bar)
 
     def _counts(self):
+        """Calcula os totais diretamente do conteúdo do Reference."""
         commands = self._load_json(COMMANDS_FILE, [])
         visible = len(commands) if isinstance(commands, list) else 0
-        special = 7
-        pdf_actions = 4
+
+        sections_by_id = {
+            section.get("id"): section
+            for section in self.sections
+            if isinstance(section, dict)
+        }
+        special = len(sections_by_id.get("buscas", {}).get("items", []))
+        pdf_actions = len(sections_by_id.get("pdf", {}).get("items", []))
         return visible, special, pdf_actions
 
     def _build_header(self, parent_layout):
@@ -197,7 +204,7 @@ class ReferenceDialog(QDialog):
 
         sidebar_layout.addStretch()
 
-        signature = QLabel("Versão 1.0.0\nBuilt with Python + Qt\non 03.07.2026\nby Mariane Jacob")
+        signature = QLabel("Versão 2.0.0\nBuilt with Python + Qt\non 24.07.2026\nby Mariane Jacob")
         signature.setObjectName("referenceSignature")
         sidebar_layout.addWidget(signature)
 

@@ -5,10 +5,7 @@ from pathlib import Path
 import subprocess
 
 
-PROJECT_PATH = Path(
-    "/Users/marianejacob/Library/Mobile Documents/"
-    "com~apple~CloudDocs/Documents/m87_terminal"
-)
+PROJECT_PATH = Path(__file__).resolve().parent.parent
 
 
 @dataclass(frozen=True)

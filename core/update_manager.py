@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -196,11 +197,39 @@ def _move_package_to_trash(zip_path: Path) -> tuple[bool, str]:
     except OSError as error:
         return False, str(error)
 
+
+def _restore_installed_files(
+    installed: list[str],
+    rollback_root: Path,
+    originally_existing: set[str],
+) -> list[str]:
+    """Restaura o estado anterior depois de uma instalação incompleta."""
+    failures = []
+
+    for relative in reversed(installed):
+        destination = PROJECT_ROOT / Path(relative)
+
+        try:
+            if relative in originally_existing:
+                original = rollback_root / Path(relative)
+                temporary = destination.with_name(
+                    destination.name + ".m87_rollback_tmp"
+                )
+                shutil.copy2(original, temporary)
+                os.replace(temporary, destination)
+            else:
+                destination.unlink(missing_ok=True)
+        except OSError as error:
+            failures.append(f"{relative}: {error}")
+
+    return failures
+
+
 def install_update(
     package: UpdatePackage,
     progress: Callable[[str], None] | None = None,
 ) -> int:
-    """Cria backup único, valida a extração e substitui os arquivos."""
+    """Instala todos os arquivos ou restaura integralmente a versão anterior."""
     notify = progress or (lambda _message: None)
 
     notify("• Criando backup...")
@@ -210,7 +239,11 @@ def install_update(
         tempfile.mkdtemp(prefix="m87_update_", dir=str(PROJECT_ROOT.parent))
     )
     staging_root = staging_parent / "conteudo"
+    rollback_root = staging_parent / "anteriores"
     staging_root.mkdir(parents=True, exist_ok=True)
+    rollback_root.mkdir(parents=True, exist_ok=True)
+    installed: list[str] = []
+    originally_existing: set[str] = set()
 
     try:
         notify("• Extraindo atualização...")
@@ -228,8 +261,19 @@ def install_update(
             if not staged.is_file():
                 raise UpdateError(f"Falha ao extrair: {relative}")
 
+            destination = PROJECT_ROOT / Path(relative)
+            if destination.exists() and not destination.is_file():
+                raise UpdateError(
+                    f"O destino da atualização não é um arquivo: {relative}"
+                )
+
+            if destination.is_file():
+                rollback_file = rollback_root / Path(relative)
+                rollback_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(destination, rollback_file)
+                originally_existing.add(relative)
+
         notify("• Substituindo arquivos...")
-        installed = 0
 
         for relative in package.files:
             staged = staging_root / Path(relative)
@@ -240,8 +284,11 @@ def install_update(
                 destination.name + ".m87_update_tmp"
             )
             shutil.copy2(staged, temporary_destination)
+            if destination.exists():
+                current_mode = stat.S_IMODE(destination.stat().st_mode)
+                os.chmod(temporary_destination, current_mode)
             os.replace(temporary_destination, destination)
-            installed += 1
+            installed.append(relative)
             notify(f"✓ {relative}")
 
         notify("• Movendo pacote para a Lixeira...")
@@ -251,8 +298,36 @@ def install_update(
         else:
             notify(f"⚠ Atualização concluída, mas o ZIP não foi movido: {detail}")
 
-        return installed
-    except OSError as error:
-        raise UpdateError(f"Não foi possível instalar a atualização: {error}") from error
+        return len(installed)
+    except Exception as error:
+        rollback_failures = _restore_installed_files(
+            installed,
+            rollback_root,
+            originally_existing,
+        )
+
+        for relative in package.files:
+            temporary = (PROJECT_ROOT / Path(relative)).with_name(
+                Path(relative).name + ".m87_update_tmp"
+            )
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        if rollback_failures:
+            detail = "; ".join(rollback_failures[:3])
+            raise UpdateError(
+                "A atualização falhou e alguns arquivos não puderam ser "
+                f"restaurados: {detail}"
+            ) from error
+
+        notify("↩ Atualização cancelada; versão anterior restaurada.")
+
+        if isinstance(error, UpdateError):
+            raise
+        raise UpdateError(
+            f"Não foi possível instalar a atualização: {error}"
+        ) from error
     finally:
         shutil.rmtree(staging_parent, ignore_errors=True)

@@ -5,8 +5,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QMimeData, QRectF, QSettings, Qt, QTimer
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QImage, QKeySequence, QPainter, QPixmap, QShortcut
+from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QMimeData, QPoint, QRectF, QSettings, Qt, QTimer
+from PySide6.QtGui import QCursor, QDragEnterEvent, QDropEvent, QIcon, QImage, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication,
@@ -20,11 +20,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSpinBox,
+    QSizeGrip,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
+
+from ui.widgets import DarkMetallicTitleBar
 
 from core.code_tools import (
     generate_ean13_svg,
@@ -36,37 +39,29 @@ from core.code_tools import (
 )
 
 
-STYLE = """
-QDialog { background: #111318; color: #E8E8E8; }
-QLabel { color: #E8E8E8; font-size: 12px; }
-QLabel#sectionTitle { color: #D0931D; font-size: 10px; font-weight: 900; letter-spacing: 1.2px; }
-QLabel#muted { color: #8E9198; font-size: 10px; }
-QLabel#statusOk { color: #64C46B; font-size: 11px; font-weight: 700; }
-QLabel#statusError { color: #D0931D; font-size: 11px; font-weight: 700; }
-QLabel#value { color: #E8E8E8; font-size: 12px; font-weight: 700; }
-QFrame#line { background: #343841; max-height: 1px; min-height: 1px; }
-QFrame#panel { background: #15181E; border: 1px solid #343841; border-radius: 8px; }
-QLineEdit, QTextEdit, QSpinBox, QComboBox {
-    background: #171A20; color: #E8E8E8; border: 1px solid #3A3E47;
-    border-radius: 6px; padding: 7px 9px; font-size: 12px;
-}
-QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid #D0931D; }
-QPushButton {
-    background: #D0931D; color: #111318; border: none; border-radius: 8px;
-    padding: 8px 16px; font-size: 11px; font-weight: 900;
-}
-QPushButton:hover { background: #E0A735; }
-QPushButton:pressed { background: #B8821A; }
-QPushButton#secondary { background: transparent; color: #D0931D; border: 1px solid #D0931D; }
-QPushButton#secondary:hover { background: rgba(208,147,29,0.10); }
-QTabWidget::pane { border: 1px solid #343841; border-radius: 8px; top: -1px; }
-QTabBar::tab {
-    background: #15181E; color: #A7AAB0; border: 1px solid #343841;
-    padding: 10px 28px; min-width: 120px; font-size: 11px; font-weight: 900;
-}
-QTabBar::tab:selected { color: #D0931D; border-color: #D0931D; background: #111318; }
-QTabBar::tab:first { border-top-left-radius: 8px; }
-QTabBar::tab:last { border-top-right-radius: 8px; }
+STYLE = f"""
+QWidget {{ font-family: "JetBrains Mono"; font-size: 10px; color: #FFC400; }}
+QWidget#barBox {{ background: rgba(0,0,0,232); border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
+QLabel#barWindowTitle {{ color: white; font-size: 10px; letter-spacing: 1px; }}
+QLabel#barClose {{ color: white; font-size: 16px; padding: 0 4px; }}
+QLabel#barClose:hover {{ color: #FFC400; }}
+QLabel {{ color: rgba(255,255,255,.82); }}
+QLabel#sectionTitle {{ color: rgba(255,196,0,.75); font-size: 9px; font-weight: 600; letter-spacing: 1px; padding-top: 6px; border-bottom: 1px solid rgba(255,196,0,.16); }}
+QLabel#muted {{ color: rgba(255,255,255,.45); font-size: 9px; }}
+QLabel#statusOk {{ color: #70d878; font-weight: 700; }}
+QLabel#statusError {{ color: #FFC400; font-weight: 700; }}
+QLabel#value {{ color: white; font-weight: 700; }}
+QFrame#line {{ background: rgba(255,196,0,.16); max-height: 1px; min-height: 1px; }}
+QFrame#panel {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,196,0,.16); border-radius: 8px; }}
+QLineEdit, QTextEdit, QSpinBox, QComboBox {{ background: rgba(255,255,255,.07); color: white; border: 1px solid rgba(255,255,255,.14); border-radius: 5px; padding: 6px 8px; min-height: 22px; }}
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus {{ border: 1px solid #FFC400; }}
+QPushButton {{ background: rgba(255,255,255,.055); border: 1px solid rgba(255,196,0,.25); border-radius: 6px; padding: 7px 12px; color: rgba(255,196,0,.82); font-weight: 600; }}
+QPushButton:hover {{ color: #fff0a0; border-color: rgba(255,196,0,.55); }}
+QPushButton:pressed {{ background: rgba(255,196,0,.12); }}
+QPushButton#secondary {{ background: transparent; color: rgba(255,196,0,.82); border: 1px solid rgba(255,196,0,.25); }}
+QTabWidget::pane {{ border: 1px solid rgba(255,196,0,.16); border-radius: 8px; top: -1px; background: rgba(255,255,255,.015); }}
+QTabBar::tab {{ background: rgba(255,255,255,.025); color: rgba(255,255,255,.55); border: 1px solid rgba(255,196,0,.13); padding: 9px 24px; min-width: 120px; font-weight: 600; }}
+QTabBar::tab:selected {{ color: #FFC400; border-color: #FFC400; background: rgba(255,196,0,.08); }}
 """
 
 
@@ -76,7 +71,7 @@ class SvgPreview(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(320, 260)
         self.setObjectName("preview")
-        self.setStyleSheet("background:#FFFFFF; border-radius:8px; color:#555;")
+        self.setStyleSheet("background:#FFFFFF; border:1px solid rgba(255,196,0,.18); border-radius:8px; color:#555;")
         self._svg = b""
         self._max_square = max_square
 
@@ -132,7 +127,7 @@ class ImagePreview(QLabel):
         super().__init__(parent)
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumHeight(230)
-        self.setStyleSheet("background:#FFFFFF; border-radius:8px; color:#555;")
+        self.setStyleSheet("background:#FFFFFF; border:1px solid rgba(255,196,0,.18); border-radius:8px; color:#555;")
         self._source = QPixmap()
         self.setText("Prévia do código")
 
@@ -169,14 +164,20 @@ class CodeGeneratorDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.settings = QSettings("M87Tools", "M87Terminal")
+        self.drag_position = QPoint()
         self.ean_svg = b""
         self.qr_svg = b""
         self.qr_png = b""
         self.reader_image = None
 
-        self.setWindowTitle("GERADOR DE CÓDIGOS")
+        self.setWindowTitle("BAR · GERADOR DE CÓDIGOS")
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
         self.resize(1120, 700)
         self.setMinimumSize(980, 620)
+        icon = Path(__file__).resolve().parent.parent / "assets" / "m87_icon.png"
+        if icon.exists():
+            self.setWindowIcon(QIcon(str(icon)))
         self.setStyleSheet(STYLE)
         self.setAcceptDrops(True)
 
@@ -184,27 +185,55 @@ class CodeGeneratorDialog(QDialog):
         self._restore_geometry()
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self.close)
 
-    def _build_ui(self):
-        root = QVBoxLayout(self)
-        root.setContentsMargins(22, 18, 22, 16)
-        root.setSpacing(12)
 
-        title = QLabel("GERADOR DE CÓDIGOS")
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("color:#D0931D; font-size:19px; font-weight:900; letter-spacing:1.4px;")
-        subtitle = QLabel("ESC fecha  |  dados atualizam automaticamente")
-        subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setObjectName("muted")
-        root.addWidget(title)
-        root.addWidget(subtitle)
+    def _title_press(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def _title_move(self, event):
+        if event.buttons() & Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self.drag_position)
+            event.accept()
+
+    def _build_ui(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.box = QWidget()
+        self.box.setObjectName("barBox")
+        outer.addWidget(self.box)
+
+        root = QVBoxLayout(self.box)
+        root.setContentsMargins(0, 0, 0, 8)
+        root.setSpacing(5)
+
+        bar = DarkMetallicTitleBar(height=28, radius=12)
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(14, 0, 10, 0)
+        title = QLabel("M87 TERMINAL · BAR · GERADOR DE CÓDIGOS")
+        title.setObjectName("barWindowTitle")
+        close = QLabel("×")
+        close.setObjectName("barClose")
+        close.setCursor(QCursor(Qt.PointingHandCursor))
+        close.mousePressEvent = lambda event: self.close()
+        bar_layout.addWidget(title)
+        bar_layout.addStretch()
+        bar_layout.addWidget(close)
+        root.addWidget(bar)
+        bar.mousePressEvent = self._title_press
+        bar.mouseMoveEvent = self._title_move
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_ean_tab(), "▥  EAN-13")
         self.tabs.addTab(self._build_qr_tab(), "▦  QR CODE")
         self.tabs.addTab(self._build_reader_tab(), "⌗  LEITOR")
-        root.addWidget(self.tabs, 1)
+        tabs_wrap = QHBoxLayout()
+        tabs_wrap.setContentsMargins(14, 2, 14, 0)
+        tabs_wrap.addWidget(self.tabs)
+        root.addLayout(tabs_wrap, 1)
 
         bottom = QHBoxLayout()
+        bottom.setContentsMargins(14, 0, 8, 0)
         clear_btn = QPushButton("LIMPAR TUDO")
         clear_btn.setObjectName("secondary")
         clear_btn.clicked.connect(self.clear_all)
@@ -214,6 +243,7 @@ class CodeGeneratorDialog(QDialog):
         bottom.addWidget(clear_btn)
         bottom.addStretch()
         bottom.addWidget(close_btn)
+        bottom.addWidget(QSizeGrip(self.box))
         root.addLayout(bottom)
 
     def _panel(self):

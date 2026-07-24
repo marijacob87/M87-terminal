@@ -1,5 +1,7 @@
-from PySide6.QtCore import Qt, QRectF, QSettings, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from pathlib import Path
+
+from PySide6.QtCore import QPoint, Qt, QRectF, QSettings, Signal
+from PySide6.QtGui import QColor, QCursor, QFont, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -11,113 +13,46 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSpinBox,
+    QSizeGrip,
     QVBoxLayout,
     QWidget,
 )
 
 from core.montagem_calculator import obter_opcoes
+from ui.widgets import DarkMetallicTitleBar
 
 
-DIALOG_STYLE = """
-QDialog {
-    background: #111318;
-    color: #E8E8E8;
-}
-QLabel {
-    color: #E8E8E8;
-    font-size: 12px;
-}
-QLabel#sectionTitle {
-    color: #D0931D;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 1.2px;
-}
-QLabel#fieldLabel {
-    color: #8E9198;
-    font-size: 9px;
-    font-weight: 800;
-}
-QLabel#resultTitle {
-    color: #D0931D;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 1px;
-}
-QLabel#resultMain {
-    color: #E8E8E8;
-    font-size: 22px;
-    font-weight: 800;
-}
-QLabel#resultMeta {
-    color: #BFC2C8;
-    font-size: 11px;
-}
-QLabel#warning {
-    color: #D0931D;
-    background: rgba(208, 147, 29, 0.10);
-    border-left: 3px solid #D0931D;
-    padding: 7px 9px;
-    border-radius: 5px;
-    font-size: 10px;
-}
-QFrame#line {
-    background: #D0931D;
-    max-height: 1px;
-    min-height: 1px;
-}
-QFrame#resultCard {
-    background: #15181E;
-    border: 1px solid #363A42;
-    border-radius: 8px;
-}
-QFrame#resultCard[selected="true"] {
-    border: 1px solid #D0931D;
-}
-QDoubleSpinBox, QSpinBox {
-    background: #171A20;
-    color: #E8E8E8;
-    border: 1px solid #3A3E47;
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 12px;
-    min-height: 22px;
-}
-QDoubleSpinBox:focus, QSpinBox:focus {
-    border: 1px solid #D0931D;
-}
-QCheckBox {
-    color: #E8E8E8;
-    spacing: 8px;
-    font-size: 11px;
-}
-QCheckBox::indicator {
-    width: 16px;
-    height: 16px;
-    border: 1px solid #5A5F69;
-    border-radius: 3px;
-    background: #171A20;
-}
-QCheckBox::indicator:checked {
-    background: #D0931D;
-    border-color: #D0931D;
-}
-QPushButton {
-    background: #D0931D;
-    color: #111318;
-    border: none;
-    border-radius: 8px;
-    padding: 7px 18px;
-    font-size: 11px;
-    font-weight: 900;
-}
-QPushButton:hover { background: #E0A735; }
-QPushButton:pressed { background: #B8821A; }
-QPushButton#secondaryButton {
-    background: transparent;
-    color: #D0931D;
-    border: 1px solid #D0931D;
-}
+ROOT = Path(__file__).resolve().parent.parent
+YELLOW = "#FFC400"
+
+
+DIALOG_STYLE = f"""
+QWidget {{ font-family: "JetBrains Mono"; font-size: 10px; color: {YELLOW}; }}
+QWidget#monBox {{ background: rgba(0,0,0,232); border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
+QWidget#monBox[embedded="true"] {{ border-radius: 0; }}
+QLabel#monWindowTitle {{ color: white; font-size: 10px; letter-spacing: 1px; }}
+QLabel#monClose {{ color: white; font-size: 16px; padding: 0 4px; }}
+QLabel#monClose:hover {{ color: {YELLOW}; }}
+QLabel {{ color: rgba(255,255,255,.82); }}
+QLabel#sectionTitle {{ color: rgba(255,196,0,.75); font-size: 9px; font-weight: 600; letter-spacing: 1px; padding-top: 6px; border-bottom: 1px solid rgba(255,196,0,.16); }}
+QLabel#fieldLabel {{ color: rgba(255,255,255,.56); font-size: 9px; }}
+QLabel#resultTitle {{ color: rgba(255,196,0,.82); font-size: 9px; font-weight: 600; letter-spacing: 1px; }}
+QLabel#resultMain {{ color: white; font-size: 22px; font-weight: 800; }}
+QLabel#resultMeta {{ color: rgba(255,255,255,.68); font-size: 10px; }}
+QLabel#warning {{ color: #ffd6d6; background: rgba(180,35,35,.34); border: 1px solid rgba(255,85,85,.80); border-radius: 7px; padding: 8px; font-size: 10px; font-weight: 700; }}
+QFrame#line {{ background: rgba(255,196,0,.16); max-height: 1px; min-height: 1px; }}
+QFrame#resultCard {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,196,0,.16); border-radius: 8px; }}
+QFrame#resultCard[selected="true"] {{ background: rgba(255,196,0,.08); border: 1px solid {YELLOW}; }}
+QDoubleSpinBox, QSpinBox {{ background: rgba(255,255,255,.07); color: white; border: 1px solid rgba(255,255,255,.14); border-radius: 5px; padding: 5px; min-height: 22px; }}
+QDoubleSpinBox:focus, QSpinBox:focus {{ border: 1px solid {YELLOW}; }}
+QCheckBox {{ color: rgba(255,255,255,.82); spacing: 7px; }}
+QCheckBox::indicator {{ width: 15px; height: 15px; border: 1px solid rgba(255,255,255,.28); border-radius: 3px; background: rgba(255,255,255,.06); }}
+QCheckBox::indicator:checked {{ background: {YELLOW}; border-color: {YELLOW}; }}
+QPushButton {{ background: rgba(255,255,255,.055); border: 1px solid rgba(255,196,0,.25); border-radius: 6px; padding: 7px; color: rgba(255,196,0,.82); }}
+QPushButton:hover {{ color: #fff0a0; border-color: rgba(255,196,0,.55); }}
+QPushButton:pressed {{ background: rgba(255,196,0,.12); }}
+QPushButton#secondaryButton {{ background: transparent; color: rgba(255,196,0,.82); border: 1px solid rgba(255,196,0,.25); }}
+QWidget#monPreview {{ border: 1px solid rgba(255,196,0,.18); border-radius: 8px; background: #080a0d; }}
 """
 
 
@@ -129,6 +64,7 @@ class MontagemPreview(QWidget):
         self.papel_a = 0.0
         self.espaco = 0.0
         self.setMinimumHeight(260)
+        self.setObjectName("monPreview")
 
     def set_data(self, resultado, papel_l, papel_a, espaco):
         self.resultado = resultado
@@ -140,7 +76,7 @@ class MontagemPreview(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.fillRect(self.rect(), QColor("#111318"))
+        painter.fillRect(self.rect(), QColor("#080a0d"))
 
         if not self.resultado or self.papel_l <= 0 or self.papel_a <= 0:
             painter.setPen(QColor("#8E9198"))
@@ -256,16 +192,33 @@ class MontagemDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.settings = QSettings("M87Tools", "M87Terminal")
+        self.drag_position = QPoint()
         self.results = []
         self.selected_result = 0
 
-        self.setWindowTitle("MON · Calcular Montagem")
+        self.setWindowTitle("MON · CALCULAR MONTAGEM")
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
         self.resize(980, 610)
         self.setMinimumSize(880, 560)
+        icon = ROOT / "assets" / "m87_icon.png"
+        if icon.exists():
+            self.setWindowIcon(QIcon(str(icon)))
         self.setStyleSheet(DIALOG_STYLE)
         self.build_ui()
         self.connect_signals()
         self.recalculate()
+
+
+    def _title_press(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def _title_move(self, event):
+        if event.buttons() & Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self.drag_position)
+            event.accept()
 
     def _double_field(self, value=0.0, maximum=100000.0):
         field = QDoubleSpinBox()
@@ -289,16 +242,42 @@ class MontagemDialog(QDialog):
         return box
 
     def build_ui(self):
-        main = QVBoxLayout(self)
-        main.setContentsMargins(22, 18, 22, 16)
-        main.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.box = QWidget()
+        self.box.setObjectName("monBox")
+        outer.addWidget(self.box)
+
+        main = QVBoxLayout(self.box)
+        main.setContentsMargins(0, 0, 0, 8)
+        main.setSpacing(5)
+
+        bar = DarkMetallicTitleBar(height=28, radius=12)
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(14, 0, 10, 0)
+        title = QLabel("M87 TERMINAL · MON · CALCULAR MONTAGEM")
+        title.setObjectName("monWindowTitle")
+        close = QLabel("×")
+        close.setObjectName("monClose")
+        close.setCursor(QCursor(Qt.PointingHandCursor))
+        close.mousePressEvent = lambda event: self.close()
+        bar_layout.addWidget(title)
+        bar_layout.addStretch()
+        bar_layout.addWidget(close)
+        main.addWidget(bar)
+        bar.mousePressEvent = self._title_press
+        bar.mouseMoveEvent = self._title_move
 
         content = QHBoxLayout()
-        content.setSpacing(24)
+        content.setContentsMargins(18, 10, 18, 2)
+        content.setSpacing(18)
         content.addWidget(self.build_inputs(), 0)
         content.addWidget(self.build_results(), 1)
         main.addLayout(content, 1)
-        main.addLayout(self.build_buttons())
+
+        bottom = self.build_buttons()
+        bottom.addWidget(QSizeGrip(self.box))
+        main.addLayout(bottom)
 
     def build_inputs(self):
         wrapper = QWidget()
@@ -496,13 +475,19 @@ class MontagemDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
+        # Quando a MONTAGEM está embutida na janela de ferramentas, trocar de aba
+        # também dispara showEvent. Restaurar a geometria da antiga janela solta
+        # nesse momento reposicionava e redimensionava o conteúdo dentro da aba.
+        if not self.isWindow():
+            return
         geometry = self.settings.value("montagem_dialog/geometry")
         if geometry:
             self.restoreGeometry(geometry)
         self.ensure_window_is_visible()
 
     def _save_geometry(self):
-        self.settings.setValue("montagem_dialog/geometry", self.saveGeometry())
+        if self.isWindow():
+            self.settings.setValue("montagem_dialog/geometry", self.saveGeometry())
 
     def closeEvent(self, event):
         self._save_geometry()

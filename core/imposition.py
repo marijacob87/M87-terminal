@@ -10,6 +10,11 @@ from typing import Iterable, Optional
 
 import fitz  # PyMuPDF
 
+from core.pdf_preservation import (
+    PdfPreservationError,
+    preserve_output_intents,
+)
+
 MM_TO_PT = 72.0 / 25.4
 PT_TO_MM = 25.4 / 72.0
 
@@ -58,6 +63,8 @@ class ExportSummary:
     plans: int
     imposed_pages: int
     items_per_sheet: int
+    output_intent_preserved: bool = False
+    source_pdfx: str = ""
 
 
 def _rect_close(a: fitz.Rect, b: fitz.Rect, tolerance_pt: float = 0.15) -> bool:
@@ -438,7 +445,10 @@ def calculate_plans(mode: str, page_count: int, items_per_sheet: int, quantity_e
     if items_per_sheet < 1 or quantity_each < 1:
         return 0
     if mode == "repeat":
-        return page_count * math.ceil(quantity_each / items_per_sheet)
+        # Em modo repetir, "quantidade" é a tiragem total desejada.
+        # Ex.: 500 unidades / 4 por folha = 125 planos, independentemente
+        # do número de páginas do PDF usado como origem.
+        return math.ceil(quantity_each / items_per_sheet)
     imposed_pages_per_set = math.ceil(page_count / items_per_sheet)
     return imposed_pages_per_set * quantity_each
 
@@ -487,7 +497,7 @@ def _draw_sheet_label(
 
     font_name = "helv"
     font_size = 7.0
-    right_x = (layout.paper_width_mm - 10.0) * MM_TO_PT
+    right_x = (layout.paper_width_mm - 50.0) * MM_TO_PT
     text_width = fitz.get_text_length(label, fontname=font_name, fontsize=font_size)
     left_x = max(3.0 * MM_TO_PT, right_x - text_width)
 
@@ -495,7 +505,7 @@ def _draw_sheet_label(
     # do primeiro TrimBox. Com a margem padrão de 5 mm, o texto fica
     # visualmente a cerca de 3 mm do topo sem nunca entrar na arte.
     first_trim_top = layout.start_y_mm * MM_TO_PT
-    baseline_y = min(4.2 * MM_TO_PT, first_trim_top - 0.5 * MM_TO_PT)
+    baseline_y = min(8.2 * MM_TO_PT, first_trim_top - 0.5 * MM_TO_PT)
     if baseline_y - font_size < 0.5 * MM_TO_PT:
         return
 
@@ -533,6 +543,19 @@ def export_imposition(
     try:
         paper_w_pt = layout.paper_width_mm * MM_TO_PT
         paper_h_pt = layout.paper_height_mm * MM_TO_PT
+        source_metadata = {
+            key: value
+            for key, value in source.metadata.items()
+            if value and key in {
+                "title",
+                "author",
+                "subject",
+                "keywords",
+                "creator",
+            }
+        }
+        if source_metadata:
+            output.set_metadata(source_metadata)
 
         if mode == "repeat":
             page_groups = [[page_index] * layout.total for page_index in range(source.page_count)]
@@ -587,6 +610,14 @@ def export_imposition(
 
         # garbage=4 / deflate mantém vetores, fontes, CMYK, spot colors e transparências.
         output.save(out_path, garbage=4, deflate=True, clean=False)
+        preservation = preserve_output_intents(src_path, out_path)
+    except PdfPreservationError as exc:
+        try:
+            if out_path.exists():
+                out_path.unlink()
+        except OSError:
+            pass
+        raise ImpositionError(str(exc)) from exc
     except Exception as exc:
         try:
             if out_path.exists():
@@ -608,6 +639,8 @@ def export_imposition(
         plans=plans,
         imposed_pages=len(page_groups),
         items_per_sheet=layout.total,
+        output_intent_preserved=preservation.output_intent_preserved,
+        source_pdfx=preservation.source_pdfx,
     )
 
 

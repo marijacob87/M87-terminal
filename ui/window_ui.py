@@ -55,8 +55,8 @@ class WindowUiMixin:
         central.setAutoFillBackground(False)
 
         self.main_layout = QVBoxLayout(central)
-        self.main_layout.setContentsMargins(0, 0, 0, 6)
-        self.main_layout.setSpacing(2)
+        self.main_layout.setContentsMargins(0, 0, 0, 4)
+        self.main_layout.setSpacing(0)
         self.main_layout.setAlignment(Qt.AlignTop)
 
         self.build_title()
@@ -114,8 +114,8 @@ class WindowUiMixin:
         self.content_container = QWidget()
         self.content_container.setObjectName("contentContainer")
         self.content_layout = QVBoxLayout(self.content_container)
-        self.content_layout.setContentsMargins(14, 6, 14, 0)
-        self.content_layout.setSpacing(2)
+        self.content_layout.setContentsMargins(14, 6, 14, 4)
+        self.content_layout.setSpacing(0)
         self.content_layout.setAlignment(Qt.AlignTop)
         self.main_layout.addWidget(self.content_container)
 
@@ -161,14 +161,31 @@ class WindowUiMixin:
 
         status_layout = QVBoxLayout(self.status_container)
         status_layout.setContentsMargins(0, 0, 0, 0)
-        status_layout.setSpacing(2)
+        status_layout.setSpacing(0)
 
-        self.status = QLabel("")
-        self.status.setObjectName("status")
-        self.status.setSizePolicy(
+        self.status_primary = QLabel("")
+        self.status_primary.setObjectName("status")
+        self.status_primary.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
         )
+
+        self.status_secondary = QLabel("")
+        self.status_secondary.setObjectName("status")
+        self.status_secondary.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
+
+        # Cada linha usa a mesma altura-base dos comandos e do prompt.
+        # Isso cria um ritmo vertical regular em toda a janela.
+        self.status_primary.setFixedHeight(18)
+        self.status_secondary.setFixedHeight(18)
+        self.status_primary.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.status_secondary.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        # Compatibilidade com trechos antigos que ainda consultem self.status.
+        self.status = self.status_primary
 
         self.divider_1 = QLabel("────────────────────────────────────")
         self.divider_1.setObjectName("divider")
@@ -176,8 +193,11 @@ class WindowUiMixin:
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
         )
+        self.divider_1.setFixedHeight(18)
+        self.divider_1.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        status_layout.addWidget(self.status)
+        status_layout.addWidget(self.status_primary)
+        status_layout.addWidget(self.status_secondary)
         status_layout.addWidget(self.divider_1)
         self.content_layout.addWidget(self.status_container)
 
@@ -218,11 +238,14 @@ class WindowUiMixin:
         self.divider_2 = QLabel("────────────────────────────────────")
         self.divider_2.setObjectName("divider")
         self.divider_2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.divider_2.setFixedHeight(18)
+        self.divider_2.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.content_layout.addWidget(self.divider_2)
 
     def build_input(self):
         self.input = TerminalInput("m87@macstudio ~ %")
         self.input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.input.setFixedHeight(18)
         self.input.setObjectName("terminalInput")
         self.input.returnPressed.connect(self.execute_from_input)
         self.input.textChanged.connect(self.update_suggestions)
@@ -262,12 +285,8 @@ class WindowUiMixin:
             self.calculator_result_label.hide()
 
     def build_resize_grip(self):
-        grip_layout = QHBoxLayout()
-        grip_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.size_grip = HorizontalResizeGrip(self, self)
+        # O redimensionador fica sobreposto no canto inferior direito.
+        # Assim não ocupa uma linha própria nem alonga a janela em repouso.
+        self.size_grip = HorizontalResizeGrip(self, self.centralWidget())
         self.size_grip.setObjectName("sizeGrip")
-
-        grip_layout.addStretch()
-        grip_layout.addWidget(self.size_grip)
-        self.content_layout.addLayout(grip_layout)
+        self.size_grip.raise_()

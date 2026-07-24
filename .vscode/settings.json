@@ -1,4 +1,4 @@
 {
-    "python.defaultInterpreterPath": "/Users/marianejacob/.venvs/m87_terminal/bin/python",
+    "python.defaultInterpreterPath": "${env:HOME}/.venvs/m87_terminal/bin/python",
     "python.terminal.activateEnvironment": true
 }

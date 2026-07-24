@@ -1,4 +1,5 @@
 import json
+import threading
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMainWindow
@@ -51,6 +52,7 @@ class M87Term(
         self.finder_folder_timer = QTimer(self)
         self.finder_folder_timer.timeout.connect(self.sync_recent_finder_folders)
         self.finder_folder_timer.start(2500)
+        self._finder_sync_lock = threading.Lock()
 
         self.setup_window()
         self.build_ui()
@@ -61,11 +63,23 @@ class M87Term(
 
 
     def sync_recent_finder_folders(self):
-        try:
-            from core.recent_folders import sync_finder_history
-            sync_finder_history()
-        except Exception:
-            pass
+        if not self._finder_sync_lock.acquire(blocking=False):
+            return
+
+        def sync():
+            try:
+                from core.recent_folders import sync_finder_history
+                sync_finder_history()
+            except Exception as error:
+                print(f"[FINDER] Não foi possível atualizar o histórico: {error}")
+            finally:
+                self._finder_sync_lock.release()
+
+        threading.Thread(
+            target=sync,
+            name="m87-finder-history",
+            daemon=True,
+        ).start()
 
     def load_commands(self):
         with open(COMMANDS_FILE, "r", encoding="utf-8") as file:

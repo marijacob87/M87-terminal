@@ -136,7 +136,9 @@ class CommandRow(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(2, 1, 2, 1)
+        self.setFixedHeight(18)
+
+        layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(4)
 
         self.code = QLabel(code)
@@ -201,12 +203,14 @@ class SectionLabel(QLabel):
         super().__init__(text.upper())
         self.setObjectName("sectionLabel")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setFixedHeight(18)
+        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.setStyleSheet("""
             QLabel#sectionLabel {
                 color: rgba(255, 255, 255, 0.52);
                 font-size: 9px;
                 font-weight: 500;
                 letter-spacing: 1px;
-                padding: 4px 2px 1px 2px;
+                padding: 0px 2px;
             }
         """)

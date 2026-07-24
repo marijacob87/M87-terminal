@@ -28,8 +28,6 @@ dist/
 *.tmp
 *.temp
 
-.venv/
-venv/
-__pycache__/
-*.pyc
-.DS_Store
+# Estado local e backup do atualizador
+state.json
+backup/ultimo_backup.zip

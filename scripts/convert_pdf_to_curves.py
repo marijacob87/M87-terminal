@@ -11,6 +11,16 @@ from pathlib import Path
 from typing import Any
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.pdf_preservation import (  # noqa: E402
+    PdfPreservationError,
+    preserve_output_intents,
+)
+
+
 GS_CANDIDATES = (
     "/opt/homebrew/bin/gs",
     "/usr/local/bin/gs",
@@ -209,6 +219,12 @@ def converter_pdf_em_curvas(pdf_path: str, output_path: str) -> dict[str, Any]:
             return_code=process.returncode,
         )
 
+    try:
+        preservation = preserve_output_intents(source, work_output)
+    except PdfPreservationError as error:
+        work_output.unlink(missing_ok=True)
+        return _result(False, str(error))
+
     valid, validation_message = _validate_output(source, work_output)
     if not valid:
         work_output.unlink(missing_ok=True)
@@ -227,6 +243,8 @@ def converter_pdf_em_curvas(pdf_path: str, output_path: str) -> dict[str, Any]:
         destination,
         ghostscript=ghostscript,
         replaced_original=replacing_original,
+        output_intent_preserved=preservation.output_intent_preserved,
+        source_pdfx=preservation.source_pdfx,
     )
 
 

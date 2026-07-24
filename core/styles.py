@@ -14,14 +14,14 @@ QWidget {
 #contentContainer { background: transparent; }
 
 #title {
-    color: rgba(255, 255, 255, 0.97);
+    color: rgba(175, 175, 175, 0.99);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.5px;
     background: transparent;
 }
 
-#status { color: #FFC400; font-size: 10px; }
+#status { color: rgba(175, 175, 175, 0.88); font-size: 10px; }
 #divider { color: rgba(255, 255, 255, 0.25); font-size: 6px; }
 #flag { color: #FFC400; font-size: 12px; font-weight: 700; }
 
@@ -29,7 +29,7 @@ QWidget {
 #codeButton,
 #referenceButton,
 #reloadButton {
-    color: rgba(255, 255, 255, 0.96);
+    color: rgba(175, 175, 175, 0.88);
     background: transparent;
     font-weight: 600;
 }
@@ -45,7 +45,7 @@ QWidget {
 #minimizeButton:hover { color: #FFE066; }
 
 #sizeGrip { width: 14px; height: 12px; background: transparent; }
-#terminalInput { background: transparent; border: none; min-height: 18px; }
+#terminalInput { background: transparent; border: none; min-height: 18px; font-size: 11px; }
 #suggestionsBox { background: transparent; }
 #suggestionItem { color: #FFC400; font-size: 12px; }
 

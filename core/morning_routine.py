@@ -13,9 +13,12 @@ NETWORK_VOLUMES = (
     ("NAS310BDA.local", "smb://NAS310BDA._smb._tcp.local/Trabalhos"),
 )
 
-VMX_PATH = Path(
-    "/Users/marianejacob/Downloads/VIRTUAL MACHINES.LOCALIZED/"
-    "Windows 11 64-bit Arm 2.vmwarevm/Windows 11 64-bit Arm 2.vmx"
+VMX_PATH = (
+    Path.home()
+    / "Downloads"
+    / "VIRTUAL MACHINES.LOCALIZED"
+    / "Windows 11 64-bit Arm 2.vmwarevm"
+    / "Windows 11 64-bit Arm 2.vmx"
 )
 
 STEPS = (

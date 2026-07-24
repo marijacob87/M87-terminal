@@ -41,7 +41,7 @@ M87_Update_X.X.X.zip
 
 Exemplo:
 
-M87_Update_1.4.8.zip
+M87_Update_2.0.0.zip
 
 ---
 
@@ -59,7 +59,7 @@ Exemplo:
 
 {
     "name": "M87 Update",
-    "version": "1.4.8",
+    "version": "2.0.0",
     "description": "Descrição curta",
     "restart": true
 }

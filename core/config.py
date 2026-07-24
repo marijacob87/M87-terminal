@@ -1,5 +1,10 @@
-COMMANDS_FILE = "commands.json"
-STATE_FILE = "state.json"
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+COMMANDS_FILE = PROJECT_ROOT / "commands.json"
+STATE_FILE = PROJECT_ROOT / "state.json"
+APP_VERSION = "2.0.0"
 
 BREAKPOINT_WIDTH = 410
 
@@ -11,5 +16,5 @@ APP_MIN_HEIGHT = 165
 STATUS_UPDATE_MS = 60_000
 WEATHER_UPDATE_MS = 30 * 60_000
 
-APP_TITLE = "M87 Terminal v1.0"
+APP_TITLE = f"M87 Terminal v{APP_VERSION}"
 FONT_FAMILY = "JetBrains Mono"

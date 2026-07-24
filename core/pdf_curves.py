@@ -107,7 +107,19 @@ def converter_pdf_em_curvas(pdf_path: str, parent=None) -> bool:
             else:
                 text = f"CURVAS concluído • salvo como {saved_path.name}"
 
-            _show_temporary_status(parent, text, 7000)
+            source_pdfx = str(data.get("source_pdfx") or "").strip()
+            if source_pdfx:
+                profile_status = (
+                    "perfil ICC preservado"
+                    if data.get("output_intent_preserved")
+                    else "sem OutputIntent incorporado"
+                )
+                text += (
+                    f"\n⚠ Origem {source_pdfx} • {profile_status} • "
+                    "PDF/X não reconfirmado"
+                )
+
+            _show_temporary_status(parent, text, 10000)
 
             # Se o original foi substituído, atualiza a leitura do PDF ativo.
             if replaced_original and hasattr(parent, "handle_pdf_drop"):

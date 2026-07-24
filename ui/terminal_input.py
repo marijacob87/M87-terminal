@@ -178,7 +178,7 @@ class TerminalInput(QWidget):
             230,
         )
 
-        baseline = metrics.ascent()
+        baseline = ((self.height() - metrics.height()) // 2) + metrics.ascent()
 
         prompt_text = self.prompt + " "
         typed_text = self.edit.text()

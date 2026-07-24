@@ -1,35 +1,61 @@
 {
   "product": {
     "name": "M87 TERMINAL",
-    "version": "v1.0.0",
+    "version": "v2.0.0",
     "created": "03 de julho de 2026"
   },
   "sections": [
     {
       "id": "inicio",
       "title": "INÍCIO",
-      "intro": "Referência rápida do M87 Terminal.",
+      "intro": "Referência completa e atualizada do M87 Terminal.",
       "items": [
         {
           "code": "COMO USAR",
           "title": "Digite um código ou clique em um comando.",
-          "description": "Use a busca acima para localizar qualquer função pelo código, nome ou descrição.",
+          "description": "Use a busca superior para localizar qualquer função pelo código, nome, descrição ou palavra-chave. Também é possível clicar diretamente nos comandos visíveis.",
           "keywords": [
             "ajuda",
             "usar",
             "buscar",
-            "comando"
+            "comando",
+            "clique"
           ]
         },
         {
           "code": "PDF",
-          "title": "Arraste um PDF para qualquer área do Terminal.",
-          "description": "Isso ativa INFO, CURVAS, REDUZIR e RENOMEAR. Pressione ESC para remover o PDF ativo.",
+          "title": "Arraste um ou vários PDFs para o Terminal.",
+          "description": "Um PDF ativa MONTAR IMPOSIÇÃO, RENOMEAR, INFO, CURVAS e REDUZIR. Dentro do IMP, vários PDFs ativam automaticamente o modo em lote. ESC remove o contexto ativo.",
           "keywords": [
             "arrastar",
             "drag",
             "drop",
-            "arquivo"
+            "arquivo",
+            "pdf",
+            "lote"
+          ]
+        },
+        {
+          "code": "ZIP",
+          "title": "Arraste um pacote M87_Update para atualizar.",
+          "description": "O Terminal valida o pacote, cria um único backup, substitui os arquivos, move o ZIP instalado para a Lixeira e reinicia automaticamente.",
+          "keywords": [
+            "atualização",
+            "update",
+            "zip",
+            "backup",
+            "reiniciar"
+          ]
+        },
+        {
+          "code": "REFERENCE",
+          "title": "Documentação integrada do projeto.",
+          "description": "Abra pelo ícone ▤. A busca percorre comandos, ações PDF, atalhos, atualização e recursos de desenvolvedor.",
+          "keywords": [
+            "reference",
+            "documentação",
+            "manual",
+            "ajuda"
           ]
         }
       ]
@@ -245,7 +271,7 @@
     {
       "id": "buscas",
       "title": "BUSCAS",
-      "intro": "Comandos especiais que não aparecem na lista principal.",
+      "intro": "Recursos especiais que não aparecem na lista principal.",
       "items": [
         {
           "code": "/",
@@ -254,63 +280,53 @@
           "keywords": [
             "trabalhos",
             "pasta principal",
-            "abrir",
             "finder"
           ]
         },
         {
           "code": "/cliente",
           "title": "Abrir pasta de cliente",
-          "description": "Busca rapidamente uma pasta de cliente e abre o primeiro resultado. Exemplo: /rota",
+          "description": "Busca uma pasta de cliente em Trabalhos e abre o primeiro resultado. Exemplo: /rota",
           "keywords": [
             "cliente",
             "pasta",
-            "abrir",
-            "finder",
             "busca rápida"
           ]
         },
         {
           "code": "/A",
           "title": "Abrir pasta por letra",
-          "description": "Abre diretamente a pasta alfabética correspondente dentro de Trabalhos. Exemplo: /A",
+          "description": "Abre diretamente a pasta alfabética correspondente em Trabalhos. Exemplo: /A.",
           "keywords": [
             "letra",
             "alfabética",
-            "pasta A",
-            "pasta B",
-            "trabalhos",
-            "abrir"
+            "trabalhos"
           ]
         },
         {
           "code": "/R Rio Ave",
           "title": "Buscar cliente dentro de uma letra",
-          "description": "Busca o cliente somente dentro da pasta indicada. Exemplo: /R Rio Ave pesquisa apenas em Trabalhos/R.",
+          "description": "Pesquisa somente dentro da pasta indicada. Exemplo: /R Rio Ave busca em Trabalhos/R.",
           "keywords": [
             "cliente",
             "letra",
-            "pasta R",
-            "busca limitada",
-            "rio ave",
-            "trabalhos"
+            "busca limitada"
           ]
         },
         {
           "code": "//trabalho",
           "title": "Pesquisar em Trabalhos",
-          "description": "Abre uma busca do Finder dentro de /Volumes/Trabalhos. Exemplo: //convite",
+          "description": "Abre uma busca do Finder dentro de /Volumes/Trabalhos. Exemplo: //convite.",
           "keywords": [
             "busca",
             "finder",
-            "trabalhos",
             "arquivo"
           ]
         },
         {
           "code": "#app",
           "title": "Fechar aplicativo aberto",
-          "description": "Pesquisa um aplicativo em execução e fecha o primeiro resultado. Exemplo: #acrobat",
+          "description": "Pesquisa entre os aplicativos em execução e fecha o primeiro resultado. Exemplo: #acrobat.",
           "keywords": [
             "fechar",
             "aplicativo",
@@ -318,53 +334,14 @@
           ]
         },
         {
-          "code": "#git + mensagem",
-          "title": "Enviar alterações ao GitHub",
-          "description": "Executa add, commit e push usando a mensagem informada.",
-          "keywords": [
-            "git",
-            "github",
-            "commit",
-            "push"
-          ]
-        },
-        {
-          "code": "#zip",
-          "title": "Criar ZIP do projeto",
-          "description": "Gera uma cópia limpa do projeto na Área de Trabalho.",
-          "keywords": [
-            "zip",
-            "backup",
-            "projeto"
-          ]
-        },
-        {
-          "code": "#code",
-          "title": "Abrir projeto no VS Code",
-          "description": "Abre a pasta atual do M87 Terminal no Visual Studio Code.",
-          "keywords": [
-            "vscode",
-            "editor",
-            "código"
-          ]
-        },
-        {
-          "code": "##",
-          "title": "Reiniciar o Terminal",
-          "description": "Fecha a instância atual e abre o M87 Terminal novamente.",
-          "keywords": [
-            "reload",
-            "reiniciar"
-          ]
-        },
-        {
           "code": "CÁLCULO",
           "title": "Calculadora direta",
-          "description": "Digite uma expressão matemática no campo do Terminal. Exemplo: 1250 / 35",
+          "description": "Digite uma expressão matemática no campo do Terminal. O resultado é formatado de forma compacta. Exemplo: 1250 / 35.",
           "keywords": [
             "conta",
             "matemática",
-            "resultado"
+            "resultado",
+            "calculadora"
           ]
         }
       ]
@@ -372,44 +349,63 @@
     {
       "id": "pdf",
       "title": "PDF",
-      "intro": "Estas ações aparecem quando um PDF está ativo.",
+      "intro": "Ações exibidas quando um PDF está ativo.",
       "items": [
         {
-          "code": "INFO",
-          "title": "Informações do PDF",
-          "description": "Mostra medidas, páginas, cores, Pantones, marcas de corte e prévia.",
+          "code": "MONTAR IMPOSIÇÃO",
+          "title": "Abrir IMP com o PDF ativo",
+          "description": "Abre o impositor já com o PDF carregado. Permite modo único ou lote, papel e orientação, margens, espaçamento, sangria, marcas, quantidade, material, identificação das folhas, prévia, cálculo de planos e exportação separada para o Desktop.",
           "keywords": [
-            "informações",
-            "pantone",
-            "medidas",
-            "preview"
-          ]
-        },
-        {
-          "code": "CURVAS",
-          "title": "Converter fontes em curvas",
-          "description": "Converte os textos do PDF em contornos e salva o resultado.",
-          "keywords": [
-            "fontes",
-            "contornos"
-          ]
-        },
-        {
-          "code": "REDUZIR",
-          "title": "Reduzir PDF",
-          "description": "Ação reservada para reduzir o tamanho do arquivo PDF.",
-          "keywords": [
-            "compactar",
-            "tamanho"
+            "imp",
+            "imposição",
+            "lote",
+            "planos",
+            "papel",
+            "marcas",
+            "material",
+            "legenda"
           ]
         },
         {
           "code": "RENOMEAR",
           "title": "Renomear PDF",
-          "description": "Abre a renomeação com os padrões usados no trabalho.",
+          "description": "Abre a renomeação usando os padrões do trabalho e mantém o fluxo pelo teclado.",
           "keywords": [
             "nome",
-            "padrão"
+            "padrão",
+            "pdf"
+          ]
+        },
+        {
+          "code": "INFO",
+          "title": "Informações do PDF",
+          "description": "Mostra nome, peso, páginas, orientação, MediaBox, TrimBox, cores, Pantones, marcas de corte e prévia em alta resolução.",
+          "keywords": [
+            "informações",
+            "pantone",
+            "medidas",
+            "preview",
+            "trimbox"
+          ]
+        },
+        {
+          "code": "CURVAS",
+          "title": "Converter fontes em curvas",
+          "description": "Converte os textos do PDF em contornos e permite escolher o nome e o local de gravação.",
+          "keywords": [
+            "fontes",
+            "contornos",
+            "curvas"
+          ]
+        },
+        {
+          "code": "REDUZIR",
+          "title": "Reduzir PDF",
+          "description": "Abre a ação preparada para reduzir o tamanho do arquivo PDF.",
+          "keywords": [
+            "compactar",
+            "tamanho",
+            "reduzir"
           ]
         }
       ]
@@ -496,6 +492,116 @@
           "keywords": [
             "botão",
             "janela"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "desenvolvedor",
+      "title": "DESENVOLVEDOR",
+      "intro": "Estrutura, comandos e fluxo oficial de desenvolvimento e atualização.",
+      "items": [
+        {
+          "code": "ESTRUTURA",
+          "title": "Pastas principais",
+          "description": "core/ lógica; ui/ interface; scripts/ rotinas auxiliares; backup/ último backup; commands.json comandos visíveis; reference.json conteúdo desta documentação.",
+          "keywords": [
+            "estrutura",
+            "core",
+            "ui",
+            "scripts",
+            "backup",
+            "commands.json",
+            "reference.json"
+          ]
+        },
+        {
+          "code": "#git mensagem",
+          "title": "Publicar alterações",
+          "description": "Executa git add, commit e push. Exemplo: #git Corrigir janela do Terminal.",
+          "keywords": [
+            "git",
+            "github",
+            "commit",
+            "push",
+            "publicar"
+          ]
+        },
+        {
+          "code": "#zip",
+          "title": "Criar ZIP do projeto",
+          "description": "Gera no Desktop um ZIP limpo e datado para enviar ao ChatGPT.",
+          "keywords": [
+            "zip",
+            "projeto",
+            "desktop",
+            "chatgpt"
+          ]
+        },
+        {
+          "code": "#code",
+          "title": "Abrir no VS Code",
+          "description": "Abre a pasta oficial do projeto no Visual Studio Code.",
+          "keywords": [
+            "vscode",
+            "editor",
+            "código"
+          ]
+        },
+        {
+          "code": "##",
+          "title": "Reiniciar o M87",
+          "description": "Fecha e abre novamente o Terminal para testar alterações.",
+          "keywords": [
+            "reload",
+            "reiniciar",
+            "teste"
+          ]
+        },
+        {
+          "code": "FLUXO",
+          "title": "Desenvolver e enviar",
+          "description": "Alterar, testar, usar #git, usar #zip e enviar o ZIP completo ao ChatGPT com a mudança desejada.",
+          "keywords": [
+            "fluxo",
+            "desenvolvimento",
+            "upload",
+            "chatgpt",
+            "enviar"
+          ]
+        },
+        {
+          "code": "ATUALIZAR",
+          "title": "Instalar pacote recebido",
+          "description": "Baixe M87_Update_X.X.X.zip, arraste para o M87 e pressione Enter. O Terminal cria backup, substitui os arquivos, remove temporários, move o ZIP para a Lixeira e reinicia.",
+          "keywords": [
+            "atualização",
+            "update",
+            "backup",
+            "lixeira",
+            "reiniciar"
+          ]
+        },
+        {
+          "code": "BACKUP",
+          "title": "Somente o último backup",
+          "description": "backup/ultimo_backup.zip guarda apenas os arquivos substituídos e é renovado a cada atualização.",
+          "keywords": [
+            "backup",
+            "ultimo_backup.zip",
+            "segurança"
+          ]
+        },
+        {
+          "code": "PADRÃO",
+          "title": "Regras do projeto",
+          "description": "Código e comentários em português, módulos pequenos, sem duplicações, interface crescendo somente para baixo e nenhum layout alterado sem pedido explícito.",
+          "keywords": [
+            "padrão",
+            "português",
+            "modular",
+            "layout",
+            "performance"
           ]
         }
       ]

@@ -94,8 +94,18 @@ class CommandControllerMixin:
         self.suggestions.clear()
 
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-        QTimer.singleShot(30, self.ajustar_altura_ao_conteudo)
+
+        # Ao desaparecerem as sugestões, a janela deve recalcular também para
+        # baixo. Sem permitir a redução, ela permanecia presa na maior altura
+        # atingida durante a digitação.
+        QTimer.singleShot(
+            0,
+            lambda: self.ajustar_altura_ao_conteudo(permitir_reduzir=True),
+        )
+        QTimer.singleShot(
+            30,
+            lambda: self.ajustar_altura_ao_conteudo(permitir_reduzir=True),
+        )
 
     def move_suggestion_up(self):
         self.suggestions.move_up()
@@ -296,27 +306,15 @@ class CommandControllerMixin:
             QTimer.singleShot(6000, self.clear_session_result)
             return
 
-        if code == "MON":
-            from ui.montagem_dialog import MontagemDialog
+        if code in {"IMP", "GEO", "MON", "BAR"}:
+            from ui.tools_dialog import ToolsDialog
 
-            dialog = MontagemDialog(self)
-            dialog.exec()
-            self.input.setFocus()
-            return
-
-        if code == "IMP":
-            from ui.imposition_dialog import ImpositionDialog
-
-            dialog = ImpositionDialog(self)
-            dialog.exec()
-            self.input.setFocus()
-            return
-
-        if code == "BAR":
-            from ui.code_generator_dialog import CodeGeneratorDialog
-
-            dialog = CodeGeneratorDialog(self)
-            dialog.exec()
+            dialog = getattr(self, "tools_dialog", None)
+            if dialog is None:
+                dialog = ToolsDialog(self, initial_tab=code)
+                self.tools_dialog = dialog
+            else:
+                dialog.open_tab(code)
             self.input.setFocus()
             return
 
@@ -513,6 +511,10 @@ class CommandControllerMixin:
         )
 
         if columns == self.current_columns:
+            # A largura pode permanecer na mesma faixa, mas o Qt pode recalcular
+            # as métricas da fonte ou restaurar widgets que estavam ocultos.
+            # Revalidar a altura evita que o divisor atravesse a última linha.
+            self._fix_commands_container_height()
             return
 
         self.current_columns = columns
@@ -597,31 +599,68 @@ class CommandControllerMixin:
 
         self._fix_commands_container_height()
 
-    def _fix_commands_container_height(self):
-        """Reserva a altura real de todas as linhas de comandos.
+    def _commands_column_height(self, sections):
+        """Calcula a altura real de uma coluna de comandos.
 
-        O ``sizeHint`` do QGridLayout pode ser calculado cedo demais, antes de
-        as fontes e os widgets terminarem o primeiro passe de layout. Isso
-        deixava a última linha parcialmente fora do container e o divisor
-        acabava atravessando o comando MP. Fazemos dois passes e usamos a maior
-        medida disponível, com uma pequena folga inferior.
+        O cálculo usa os próprios widgets, em vez de depender apenas do
+        ``sizeHint`` do QGridLayout. No macOS, o layout pode devolver uma altura
+        provisória durante a restauração da janela, cortando exatamente a
+        última linha de comandos.
         """
+        widgets = []
+
+        for section in sections:
+            rows = self.command_sections.get(section, [])
+            if not rows:
+                continue
+            widgets.append(self.section_labels[section])
+            widgets.extend(rows)
+
+        if not widgets:
+            return 0
+
+        spacing = max(0, self.commands_grid.verticalSpacing())
+        heights = [
+            max(widget.sizeHint().height(), widget.minimumSizeHint().height())
+            for widget in widgets
+        ]
+        return sum(heights) + spacing * max(0, len(heights) - 1)
+
+    def _required_commands_height(self):
+        margins = self.commands_grid.contentsMargins()
+
+        if self.current_columns == 1:
+            content_height = self._commands_column_height(
+                ["Sistema", "Abrir", "Ferramentas"]
+            )
+        else:
+            left_height = self._commands_column_height(["Sistema"])
+            right_height = self._commands_column_height(
+                ["Abrir", "Ferramentas"]
+            )
+            content_height = max(left_height, right_height)
+
+        layout_height = max(
+            self.commands_grid.sizeHint().height(),
+            self.commands_grid.minimumSize().height(),
+        )
+
+        # As linhas têm altura fixa. Uma folga mínima de 2 px basta para
+        # absorver arredondamentos da tela Retina sem criar um vão visual.
+        return max(content_height, layout_height) + margins.top() + margins.bottom() + 2
+
+    def _fix_commands_container_height(self):
+        """Mantém todas as linhas de comandos integralmente visíveis."""
         if not hasattr(self, "commands_container"):
             return
 
         self.commands_grid.invalidate()
         self.commands_grid.activate()
 
-        hint_height = self.commands_grid.sizeHint().height()
-        minimum_height = self.commands_grid.minimumSize().height()
-        height = max(hint_height, minimum_height) + 8
+        height = self._required_commands_height()
+        if height > 14:
+            self.commands_container.setFixedHeight(height)
 
-        if height > 8:
-            self.commands_container.setMinimumHeight(height)
-            self.commands_container.setMaximumHeight(height)
-
-        # No macOS, o primeiro sizeHint ainda pode mudar após o widget ser
-        # mostrado. Um segundo passe corrige a medida sem criar um loop.
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self._finalize_commands_container_height)
 
@@ -632,14 +671,14 @@ class CommandControllerMixin:
         self.commands_grid.invalidate()
         self.commands_grid.activate()
 
-        height = max(
-            self.commands_grid.sizeHint().height(),
-            self.commands_grid.minimumSize().height(),
-        ) + 8
+        height = self._required_commands_height()
+        if height > 14:
+            self.commands_container.setFixedHeight(height)
 
-        if height > 8:
-            self.commands_container.setMinimumHeight(height)
-            self.commands_container.setMaximumHeight(height)
-
-        if getattr(self, "current_pdf", None):
-            self.ajustar_altura_ao_conteudo()
+        # A altura-base também precisa comportar título, status, comandos,
+        # prompt e divisor. Assim qualquer mensagem nova nasce abaixo dos
+        # comandos, e a janela cresce apenas para baixo.
+        self.ajustar_altura_ao_conteudo(
+            atualizar_altura_normal=True,
+            permitir_reduzir=True,
+        )
