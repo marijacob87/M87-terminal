@@ -204,7 +204,13 @@ class ReferenceDialog(QDialog):
 
         sidebar_layout.addStretch()
 
-        signature = QLabel("Versão 2.0.0\nBuilt with Python + Qt\non 24.07.2026\nby Mariane Jacob")
+        product = self.data.get("product", {})
+        version = str(product.get("version", "")).lstrip("v")
+        updated = product.get("updated") or product.get("created", "")
+        signature = QLabel(
+            f"Versão {version}\nBuilt with Python + Qt\n"
+            f"Atualizado em {updated}\nby Mariane Jacob"
+        )
         signature.setObjectName("referenceSignature")
         sidebar_layout.addWidget(signature)
 
@@ -360,8 +366,16 @@ class ReferenceDialog(QDialog):
         for section, item in self._all_items():
             code_tokens = self._search_tokens(item.get("code", ""))
             title_tokens = self._search_tokens(item.get("title", ""))
+            description_tokens = self._search_tokens(
+                item.get("description", "")
+            )
             keyword_tokens = self._search_tokens(" ".join(item.get("keywords", [])))
-            searchable_tokens = set(code_tokens + title_tokens + keyword_tokens)
+            searchable_tokens = set(
+                code_tokens
+                + title_tokens
+                + description_tokens
+                + keyword_tokens
+            )
 
             # Cada termo precisa existir como palavra real. Assim, "git" não
             # encontra acidentalmente "digite". Prefixos continuam úteis

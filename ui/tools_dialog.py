@@ -60,16 +60,18 @@ class PdfDropOverlay(QWidget):
 
 
 class ToolsDialog(QDialog):
-    TAB_ORDER = ("IMP", "GEO", "MON", "BAR")
-    TAB_LABELS = ("IMPOSIÇÃO", "GEOMETRIA", "MONTAGEM", "EAN-13")
+    TAB_ORDER = ("GEO", "IMP", "MON", "BAR")
+    TAB_LABELS = ("GEOMETRIA", "IMPOSIÇÃO", "MONTAGEM", "EAN-13")
 
-    def __init__(self, parent=None, initial_tab="IMP"):
+    def __init__(self, parent=None, initial_tab="GEO"):
         super().__init__(parent)
         self.settings = QSettings("M87Tools", "M87Terminal")
         self.drag_position = QPoint()
         self._pages = {}
         self._last_drop_paths = []
         self._drop_guard_active = False
+        self._geometry_output_path = None
+        self._loading_geometry_into_imp = False
         self._setup_window()
         self._build_ui()
         self._prepare_drop_targets()
@@ -126,15 +128,15 @@ class ToolsDialog(QDialog):
         self._pages["GEO"] = geo
         mon = self._embed_dialog(MontagemDialog(self), "MON")
         bar_page = self._embed_dialog(CodeGeneratorDialog(self), "BAR")
-        for page, label in zip((imp, geo, mon, bar_page), self.TAB_LABELS):
+        for page, label in zip((geo, imp, mon, bar_page), self.TAB_LABELS):
             self.tabs.addTab(page, label)
         root.addWidget(self.tabs, 1)
 
         self.drop_overlay = PdfDropOverlay(self._pdf_paths, self.tabs)
         self.drop_overlay.pdfDropped.connect(self._load_dropped_pdfs)
 
-        geo.saveRequested.connect(self._save_from_geo)
         self._pages["IMP"].pdfStateChanged.connect(self._on_imp_pdf_state_changed)
+        geo.appliedPdfChanged.connect(self._on_geometry_applied)
         self.tabs.currentChanged.connect(self._sync_geo_state)
 
         grip_row = QHBoxLayout()
@@ -201,7 +203,7 @@ class ToolsDialog(QDialog):
     def open_tab(self, code):
         code = str(code).upper()
         if code not in self.TAB_ORDER:
-            code = "IMP"
+            code = "GEO"
         self.tabs.setCurrentIndex(self.TAB_ORDER.index(code))
         if not self.isVisible():
             self.show()
@@ -229,7 +231,10 @@ class ToolsDialog(QDialog):
         return paths
 
     def _drop_is_enabled(self):
-        return self.tabs.currentIndex() in (0, 1)
+        return self.tabs.currentIndex() in (
+            self.TAB_ORDER.index("GEO"),
+            self.TAB_ORDER.index("IMP"),
+        )
 
     def _load_dropped_pdfs(self, paths):
         if not paths or self._drop_guard_active:
@@ -333,21 +338,47 @@ class ToolsDialog(QDialog):
             event.ignore()
 
     def _on_imp_pdf_state_changed(self, paths):
+        if self._loading_geometry_into_imp:
+            return
         self._last_drop_paths = list(paths)
         self._pages["GEO"].set_pdf_state(self._last_drop_paths)
 
-    def _sync_geo_state(self, _index=0):
-        self._pages["GEO"].set_pdf_state(self._last_drop_paths)
+    def _on_geometry_applied(self, path):
+        self._geometry_output_path = str(path)
+        self._load_geometry_output_into_imp()
 
-    def _save_from_geo(self):
+    def _load_geometry_output_into_imp(self):
+        if not self._geometry_output_path or self._loading_geometry_into_imp:
+            return False
+        geometry_output = Path(self._geometry_output_path).expanduser().resolve()
+        if not geometry_output.is_file():
+            return False
         imp = self._pages["IMP"]
-        if imp.save.isEnabled():
-            imp.save.click()
+        self._loading_geometry_into_imp = True
+        try:
+            imp.load_pdf(str(geometry_output))
+            loaded_path = getattr(imp, "pdf_path", None)
+            if loaded_path and Path(loaded_path).resolve() == geometry_output:
+                self._geometry_output_path = None
+                return True
+            return False
+        finally:
+            self._loading_geometry_into_imp = False
+
+    def _sync_geo_state(self, index=0):
+        if index == self.TAB_ORDER.index("IMP"):
+            self._load_geometry_output_into_imp()
+            return
+        if index == self.TAB_ORDER.index("GEO"):
+            self._pages["GEO"].set_pdf_state(self._last_drop_paths)
 
     def _close_tools(self):
         imp = self._pages.get("IMP")
         if imp and hasattr(imp, "_clear_batch"):
             imp._clear_batch()
+        geo = self._pages.get("GEO")
+        if geo and hasattr(geo, "clear_pdf"):
+            geo.clear_pdf()
         self.close()
 
     def _title_press(self, event):
@@ -374,6 +405,9 @@ class ToolsDialog(QDialog):
         imp = self._pages.get("IMP")
         if imp and hasattr(imp, "_clear_batch") and getattr(imp, "batch_items", None):
             imp._clear_batch()
+        geo = self._pages.get("GEO")
+        if geo and hasattr(geo, "clear_pdf"):
+            geo.clear_pdf()
         self.settings.setValue("tools_dialog/geometry", self.saveGeometry())
         super().closeEvent(event)
 

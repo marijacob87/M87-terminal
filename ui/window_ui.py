@@ -177,12 +177,25 @@ class WindowUiMixin:
             QSizePolicy.Fixed,
         )
 
+        self.status_network = QLabel("")
+        self.status_network.setObjectName("status")
+        self.status_network.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
+        for label in (self.status_primary, self.status_network):
+            label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+            label.setOpenExternalLinks(False)
+            label.linkActivated.connect(self.mount_network_from_status)
+
         # Cada linha usa a mesma altura-base dos comandos e do prompt.
         # Isso cria um ritmo vertical regular em toda a janela.
         self.status_primary.setFixedHeight(18)
         self.status_secondary.setFixedHeight(18)
+        self.status_network.setFixedHeight(18)
         self.status_primary.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.status_secondary.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.status_network.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         # Compatibilidade com trechos antigos que ainda consultem self.status.
         self.status = self.status_primary
@@ -198,6 +211,7 @@ class WindowUiMixin:
 
         status_layout.addWidget(self.status_primary)
         status_layout.addWidget(self.status_secondary)
+        status_layout.addWidget(self.status_network)
         status_layout.addWidget(self.divider_1)
         self.content_layout.addWidget(self.status_container)
 
@@ -253,6 +267,7 @@ class WindowUiMixin:
         self.input.arrowUpPressed.connect(self.move_suggestion_up)
         self.input.arrowDownPressed.connect(self.move_suggestion_down)
         self.input.escapePressed.connect(self.clear_context)
+        self.input.calculatorEntryReset.connect(self.reset_calculator_session)
 
         self.calculator_result_label = QLabel("")
         self.calculator_result_label.setObjectName("calculatorResultLabel")
@@ -283,6 +298,10 @@ class WindowUiMixin:
         if hasattr(self, "calculator_result_label"):
             self.calculator_result_label.clear()
             self.calculator_result_label.hide()
+
+    def reset_calculator_session(self):
+        self.calculator_repeat_operation = None
+        self.clear_calculator_result()
 
     def build_resize_grip(self):
         # O redimensionador fica sobreposto no canto inferior direito.

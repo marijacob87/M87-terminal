@@ -103,8 +103,30 @@ def sync_finder_history():
 
     # O Finder devolve as janelas da frente para trás. Gravamos ao contrário
     # para que a janela mais à frente termine no topo do histórico.
+    items = _load_history()
+    original = list(items)
     for path in reversed(paths):
-        record_recent_folder(path)
+        try:
+            folder = Path(os.path.expanduser(str(path))).resolve()
+        except (OSError, RuntimeError):
+            folder = Path(os.path.expanduser(str(path)))
+
+        if not folder.is_dir():
+            continue
+
+        folder_text = str(folder)
+        items = [
+            item for item in items
+            if isinstance(item, dict) and item.get("path") != folder_text
+        ]
+        items.insert(
+            0,
+            {"name": folder.name or folder_text, "path": folder_text},
+        )
+
+    items = items[:_MAX_STORED]
+    if items != original:
+        _save_history(items)
 
     return len(paths)
 

@@ -78,6 +78,9 @@ class SuggestionsBox(QWidget):
             if item.get("type") == "recent_folder":
                 return f"{prefix} {item.get('name', 'Pasta')}"
 
+            if item.get("type") == "whatsapp_contact":
+                return f"{prefix} WPP   {item.get('name', 'Contacto')}"
+
             if "code" in item:
                 code = item.get("code", "")
                 label = item.get("label", "")

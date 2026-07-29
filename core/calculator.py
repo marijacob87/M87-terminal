@@ -11,6 +11,13 @@ OPERATORS = {
     ast.USub: operator.neg,
 }
 
+REPEAT_OPERATOR_SYMBOLS = {
+    ast.Add: "+",
+    ast.Sub: "-",
+    ast.Mult: "*",
+    ast.Div: "/",
+}
+
 
 def is_calculation(text):
     text = text.strip()
@@ -74,3 +81,31 @@ def calculate(text):
     result = safe_eval(tree.body)
 
     return _format_result(result)
+
+
+def is_number(text):
+    try:
+        node = ast.parse(text.strip().replace(",", "."), mode="eval").body
+        return isinstance(node, ast.Constant) and isinstance(
+            node.value,
+            (int, float),
+        )
+    except (SyntaxError, ValueError):
+        return False
+
+
+def repeat_operation(text):
+    """Retorna a operação que o Enter deve repetir, como na calculadora."""
+    expression = text.strip().replace(",", ".")
+    tree = ast.parse(expression, mode="eval")
+    node = tree.body
+
+    if not isinstance(node, ast.BinOp):
+        return None
+
+    symbol = REPEAT_OPERATOR_SYMBOLS.get(type(node.op))
+    if symbol is None:
+        return None
+
+    operand = _format_result(safe_eval(node.right))
+    return symbol, operand

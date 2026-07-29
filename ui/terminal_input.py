@@ -15,6 +15,7 @@ class TerminalInput(QWidget):
     returnPressed = Signal()
     textChanged = Signal(str)
     fileDropped = Signal(str)
+    calculatorEntryReset = Signal()
 
     def __init__(self, prompt="m87@macstudio ~ %", parent=None):
         super().__init__(parent)
@@ -22,6 +23,7 @@ class TerminalInput(QWidget):
         self.prompt = prompt
         self.cursor_visible = True
         self.has_input_focus = False
+        self.calculator_result_active = False
 
         self.edit = HiddenLineEdit(self)
         self.edit.setFrame(False)
@@ -59,6 +61,31 @@ class TerminalInput(QWidget):
                 self.update()
 
             elif event.type() == QEvent.KeyPress:
+                if self.calculator_result_active:
+                    if event.key() in (
+                        Qt.Key_0,
+                        Qt.Key_1,
+                        Qt.Key_2,
+                        Qt.Key_3,
+                        Qt.Key_4,
+                        Qt.Key_5,
+                        Qt.Key_6,
+                        Qt.Key_7,
+                        Qt.Key_8,
+                        Qt.Key_9,
+                        Qt.Key_Period,
+                        Qt.Key_Comma,
+                        Qt.Key_ParenLeft,
+                    ):
+                        self.clear()
+                        self.calculator_result_active = False
+                        self.calculatorEntryReset.emit()
+                    elif event.key() in (Qt.Key_Backspace, Qt.Key_Delete):
+                        self.calculator_result_active = False
+                        self.calculatorEntryReset.emit()
+                    elif event.text() in ("+", "-", "*", "/"):
+                        self.calculator_result_active = False
+
                 if event.key() == Qt.Key_Up:
                     self.arrowUpPressed.emit()
                     return True
@@ -68,6 +95,8 @@ class TerminalInput(QWidget):
                     return True
 
                 if event.key() == Qt.Key_Escape:
+                    self.calculator_result_active = False
+                    self.calculatorEntryReset.emit()
                     self.escapePressed.emit()
                     return True
 
@@ -100,6 +129,12 @@ class TerminalInput(QWidget):
 
     def setText(self, text):
         self.edit.setText(text)
+        self.update()
+
+    def set_calculator_result(self, result):
+        self.setText(result)
+        self.calculator_result_active = True
+        self.edit.end(False)
         self.update()
 
     def setPlaceholderText(self, text):
@@ -165,11 +200,10 @@ class TerminalInput(QWidget):
             0,
             242,
         )
-        text_color = QColor(
-            255,
-            196,
-            0,
-            255,
+        text_color = (
+            QColor(255, 255, 255, 245)
+            if self.calculator_result_active
+            else QColor(255, 196, 0, 255)
         )
         cursor_color = QColor(
             255,

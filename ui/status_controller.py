@@ -78,6 +78,23 @@ class StatusControllerMixin:
         battery = self.status_data.get("battery", "--%")
         ram = self.status_data.get("ram", "--%")
         cpu = self.status_data.get("cpu", "--%")
+        networks = self.status_data.get("networks", {})
+        network_text = "&nbsp;&nbsp;".join(
+            f"<a href='mount:{name}' style='color:#AFAFAF; "
+            f"text-decoration:none;'>{name}&nbsp;"
+            f"<span style='color:"
+            f"{'#70d878' if networks.get(name) else '#ff5f57'}'>●</span></a>"
+            for name in ("NAS", "MIM", "PFI")
+        )
+        network_html = f"<span>{network_text}</span>"
+        network_tooltip = (
+            "Volumes SMB: NAS, Mimaki e PFI\n"
+            "● verde = montado e acessível\n"
+            "● vermelho = desmontado ou indisponível\n"
+            "Clique numa unidade para montá-la"
+        )
+        self.status_network.setToolTip(network_tooltip)
+        self.status_primary.setToolTip(network_tooltip)
 
         if self.width() < BREAKPOINT_WIDTH:
             self.status_primary.setText(f"{data}   {hora}   {temp}")
@@ -85,13 +102,31 @@ class StatusControllerMixin:
                 f"BAT {battery}   RAM {ram}   CPU {cpu}"
             )
             self.status_secondary.show()
+            self.status_network.setText(network_html)
+            self.status_network.show()
         else:
             self.status_primary.setText(
-                f"{data}   {hora}   {temp}   "
-                f"BAT {battery}   RAM {ram}   CPU {cpu}"
+                f"<span>{data}&nbsp;&nbsp;&nbsp;{hora}&nbsp;&nbsp;&nbsp;"
+                f"{temp}&nbsp;&nbsp;&nbsp;BAT {battery}&nbsp;&nbsp;&nbsp;"
+                f"RAM {ram}&nbsp;&nbsp;&nbsp;CPU {cpu}&nbsp;&nbsp;&nbsp;"
+                f"{network_text}</span>"
             )
+            self.status_primary.setToolTip(network_tooltip)
             self.status_secondary.clear()
             self.status_secondary.hide()
+            self.status_network.clear()
+            self.status_network.hide()
+
+    def mount_network_from_status(self, link):
+        prefix = "mount:"
+        if not link.startswith(prefix):
+            return
+
+        target = link[len(prefix):].strip().upper()
+        if target not in {"NAS", "MIM", "PFI"}:
+            return
+
+        self._start_mount_volumes(target)
 
     def update_last_real_app(self):
         app_name = get_frontmost_app()

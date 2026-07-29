@@ -4,6 +4,7 @@ from datetime import datetime
 
 import psutil
 
+from core.network_volumes import get_network_status
 
 def get_battery():
     try:
@@ -67,4 +68,5 @@ def get_status_data(weather_temp):
         "battery": get_battery(),
         "ram": get_ram_usage(),
         "cpu": get_cpu_usage(),
+        "networks": get_network_status(),
     }

@@ -92,10 +92,10 @@
   },
   {
     "section": "Ferramentas",
-    "code": "IMP",
-    "label": "Imposição",
+    "code": "CC",
+    "label": "Conferir CheckList",
     "type": "internal",
-    "value": "imposition"
+    "value": "checklist"
   },
   {
     "section": "Ferramentas",
@@ -103,6 +103,13 @@
     "label": "Geometria",
     "type": "internal",
     "value": "geometry"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "IMP",
+    "label": "Imposição",
+    "type": "internal",
+    "value": "imposition"
   },
   {
     "section": "Ferramentas",

@@ -6,12 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
-
-NETWORK_VOLUMES = (
-    ("jv100-160", "smb://jv100-160/Pasta Mimaki"),
-    ("pfi", "smb://pfi/Trabalhos PFI"),
-    ("NAS310BDA.local", "smb://NAS310BDA._smb._tcp.local/Trabalhos"),
-)
+from core.network_volumes import select_network_volumes
 
 VMX_PATH = (
     Path.home()
@@ -22,13 +17,13 @@ VMX_PATH = (
 )
 
 STEPS = (
-    "Unidades",
     "Mail",
     "WhatsApp",
     "Safari",
     "VMware",
     "Windows 11",
     "Notificações",
+    "Unidades",
 )
 
 
@@ -81,8 +76,8 @@ def _mount_volume(url):
     return True
 
 
-def mount_network_volumes():
-    """Monta e verifica todas as unidades configuradas.
+def mount_network_volumes(target=None):
+    """Monta e verifica as unidades configuradas selecionadas.
 
     Não usa ping como pré-requisito, porque muitos servidores SMB respondem ao
     compartilhamento mesmo quando bloqueiam ICMP. O sucesso só é considerado
@@ -90,7 +85,12 @@ def mount_network_volumes():
     """
     all_ok = True
 
-    for _host, url in NETWORK_VOLUMES:
+    volumes = select_network_volumes(target)
+    if not volumes:
+        return False
+
+    for volume in volumes:
+        url = volume["url"]
         volume_name = url.rsplit("/", 1)[-1].replace("%20", " ")
 
         if _volume_is_mounted(volume_name):
@@ -200,13 +200,13 @@ class MorningRoutineWorker(QThread):
         started = time.perf_counter()
 
         tasks = (
-            ("Unidades", mount_network_volumes),
             ("Mail", lambda: _open_app("Mail")),
             ("WhatsApp", lambda: _open_app("WhatsApp")),
             ("Safari", lambda: _open_app("Safari")),
             ("VMware", lambda: _open_app("VMware Fusion")),
             ("Windows 11", _start_windows_vm),
             ("Notificações", _clear_notifications),
+            ("Unidades", mount_network_volumes),
         )
 
         for label, action in tasks:
@@ -228,7 +228,11 @@ class MorningRoutineWorker(QThread):
 class MountVolumesWorker(QThread):
     completed = Signal(bool, float)
 
+    def __init__(self, target=None, parent=None):
+        super().__init__(parent)
+        self.target = target
+
     def run(self):
         started = time.perf_counter()
-        ok = mount_network_volumes()
+        ok = mount_network_volumes(self.target)
         self.completed.emit(ok, time.perf_counter() - started)

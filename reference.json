@@ -2,7 +2,8 @@
   "product": {
     "name": "M87 TERMINAL",
     "version": "v2.0.0",
-    "created": "03 de julho de 2026"
+    "created": "03 de julho de 2026",
+    "updated": "29 de julho de 2026"
   },
   "sections": [
     {
@@ -101,11 +102,15 @@
             {
               "code": "MU",
               "title": "Montar Unidades",
-              "description": "Monta Pasta Mimaki, Trabalhos PFI e Trabalhos.",
+              "description": "Monta e verifica as três unidades configuradas: MIM, PFI e NAS. Para montar somente uma, use MU MIM, MU PFI ou MU NAS. Os indicadores no status ficam verdes apenas quando o volume está montado e acessível; clique num indicador para tentar montar aquela unidade.",
               "keywords": [
                 "rede",
                 "servidor",
-                "smb"
+                "smb",
+                "nas",
+                "mimaki",
+                "pfi",
+                "indicador"
               ]
             },
             {
@@ -205,6 +210,32 @@
         {
           "title": "FERRAMENTAS",
           "items": [
+            {
+              "code": "CC",
+              "title": "Conferir Checklist",
+              "description": "Abre a checklist de liberação com etapas de folha de obra, estrutura, conteúdo, cores, corte, acabamento e arquivo final. O progresso fica guardado entre aberturas; use NOVA CONFERÊNCIA para limpar os itens quando começar outro trabalho.",
+              "keywords": [
+                "checklist",
+                "conferir",
+                "liberação",
+                "pré-impressão",
+                "qualidade"
+              ]
+            },
+            {
+              "code": "GEO",
+              "title": "Geometria do PDF",
+              "description": "Abre a aba GEO na janela compartilhada de ferramentas. Permite inspecionar páginas, alterar formato, MediaBox e TrimBox, escolher âncora, adicionar marcas de corte e remover somente objetos totalmente fora da TrimBox. Trabalha com pré-visualização, desfazer e Salvar Como, sem sobrescrever o PDF original.",
+              "keywords": [
+                "geometria",
+                "pdf",
+                "mediabox",
+                "trimbox",
+                "formato",
+                "marcas de corte",
+                "salvar como"
+              ]
+            },
             {
               "code": "BAR",
               "title": "Gerador de Códigos",
@@ -336,12 +367,41 @@
         {
           "code": "CÁLCULO",
           "title": "Calculadora direta",
-          "description": "Digite uma expressão matemática no campo do Terminal. O resultado é formatado de forma compacta. Exemplo: 1250 / 35.",
+          "description": "Digite uma expressão matemática no campo do Terminal. O resultado substitui a expressão e fica pronto para continuar a conta. Pressione Enter novamente para repetir a última operação; ao digitar um número, começa uma nova conta. Exemplo: 1250 / 35.",
           "keywords": [
             "conta",
             "matemática",
             "resultado",
             "calculadora"
+          ]
+        },
+        {
+          "code": "WPP",
+          "title": "Escolher uma conversa e baixar os arquivos de hoje",
+          "description": "Digite WPP para carregar em segundo plano as conversas ativas do WhatsApp, sem abrir uma janela do Chrome. Escolha o contacto com ↑ ↓ e pressione Enter. Somente os anexos recebidos hoje são guardados diretamente no Desktop e nunca sobrescrevem arquivos existentes. O Terminal só confirma sucesso quando a quantidade identificada coincide com arquivos não vazios gravados; lotes parciais são sinalizados como incompletos. Se a sessão expirar, será necessário autenticar novamente.",
+          "keywords": [
+            "whatsapp",
+            "wpp",
+            "baixar",
+            "download",
+            "anexos",
+            "arquivos",
+            "hoje",
+            "contacto"
+          ]
+        },
+        {
+          "code": "WPP ONTEM",
+          "title": "Baixar os arquivos recebidos ontem pelo WhatsApp",
+          "description": "Carrega as mesmas conversas ativas do WPP. Escolha o contacto com ↑ ↓ e pressione Enter. Somente os PDFs e imagens recebidos entre os separadores Ontem e Hoje são guardados diretamente no Desktop. O Terminal compara a quantidade identificada com os arquivos não vazios realmente gravados e nunca apresenta sucesso para um lote parcial.",
+          "keywords": [
+            "whatsapp",
+            "wpp",
+            "ontem",
+            "baixar",
+            "download",
+            "pdf",
+            "imagem"
           ]
         }
       ]
@@ -417,7 +477,7 @@
         {
           "code": "ENTER",
           "title": "Executar",
-          "description": "Executa o comando digitado ou a sugestão selecionada.",
+          "description": "Executa o comando digitado ou a sugestão selecionada. Depois de um cálculo, repete a última operação.",
           "keywords": [
             "teclado"
           ]

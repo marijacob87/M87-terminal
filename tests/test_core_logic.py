@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.calculator import calculate, is_calculation
+from core.calculator import calculate, is_calculation, is_number, repeat_operation
 from core.code_tools import (
     calculate_ean13_check_digit,
     ean13_pattern,
@@ -23,6 +23,14 @@ class CalculatorTests(unittest.TestCase):
         self.assertFalse(is_calculation("__import__('os')"))
         with self.assertRaises((SyntaxError, ValueError)):
             calculate("__import__('os').system('echo unsafe')")
+
+    def test_recognizes_plain_number_without_treating_it_as_a_command(self):
+        self.assertTrue(is_number("3,75"))
+        self.assertFalse(is_number("3 + 4"))
+
+    def test_extracts_operation_for_repeated_enter(self):
+        self.assertEqual(repeat_operation("10 + 2"), ("+", "2"))
+        self.assertEqual(repeat_operation("10 / 4"), ("/", "4"))
 
 
 class Ean13Tests(unittest.TestCase):

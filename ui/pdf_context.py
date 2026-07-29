@@ -100,6 +100,8 @@ class PdfContextMixin:
         self.active_file_label.clear()
         self.active_file_label.hide()
         self.clear_suggestions()
+        self.clear_calculator_result()
+        self.reset_calculator_session()
 
         self.input.blockSignals(True)
         self.input.clear()

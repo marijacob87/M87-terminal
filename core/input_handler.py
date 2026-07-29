@@ -1,7 +1,12 @@
 from PySide6.QtCore import QTimer
 
 from core.app_search import open_application, search_applications
-from core.calculator import calculate, is_calculation
+from core.calculator import (
+    calculate,
+    is_calculation,
+    is_number,
+    repeat_operation,
+)
 from core.client_search import (
     finder_search,
     letter_folder,
@@ -26,6 +31,41 @@ def handle_input_text(app, text):
     text = text.strip()
 
     if not text:
+        return
+
+    # =========================
+    # WPP [BAIXAR] contacto HOJE = baixa anexos do WhatsApp Web
+    # Ex: WPP BAIXAR Pedro Reis HOJE
+    # =========================
+
+    if text.upper() in {"WPP", "WPP ONTEM"}:
+        from datetime import date, timedelta
+
+        requested_day = (
+            date.today() - timedelta(days=1)
+            if text.upper() == "WPP ONTEM"
+            else date.today()
+        )
+        app.input.clear()
+        app.clear_suggestions()
+        app.start_whatsapp_contacts(requested_day)
+        return
+
+    if text.upper().startswith("WPP"):
+        from core.whatsapp_download import parse_whatsapp_command
+
+        request = parse_whatsapp_command(text)
+        app.input.clear()
+        app.clear_suggestions()
+
+        if request is None:
+            show_temporary_placeholder(
+                app.input,
+                "use: WPP BAIXAR Pedro Reis HOJE"
+            )
+            return
+
+        app.start_whatsapp_download(request)
         return
 
     # =========================
@@ -244,11 +284,28 @@ def handle_input_text(app, text):
     # CÁLCULO
     # =========================
 
+    if (
+        is_number(text)
+        and app.input.calculator_result_active
+        and getattr(app, "calculator_repeat_operation", None)
+    ):
+        operator, operand = app.calculator_repeat_operation
+        try:
+            result = calculate(f"{text}{operator}{operand}")
+            app.input.set_calculator_result(result)
+            app.clear_suggestions()
+            return
+        except Exception:
+            show_temporary_placeholder(app.input, "cálculo inválido")
+            return
+
     if is_calculation(text):
         try:
             result = calculate(text)
-            app.calculator_result_label.setText(f"= {result}")
-            app.calculator_result_label.show()
+            app.calculator_repeat_operation = repeat_operation(text)
+            app.input.set_calculator_result(result)
+            app.clear_calculator_result()
+            app.clear_suggestions()
             return
         except Exception:
             show_temporary_placeholder(
@@ -256,6 +313,11 @@ def handle_input_text(app, text):
                 "cálculo inválido"
             )
             return
+
+    if is_number(text):
+        app.input.set_calculator_result(text)
+        app.clear_suggestions()
+        return
 
     # =========================
     # COMANDO NORMAL
