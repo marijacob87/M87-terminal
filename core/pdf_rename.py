@@ -1,22 +1,56 @@
 import math
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 
 PADRAO_GRAFICA = re.compile(
-    r"^#\s*(.*?)\s*-\s*\d+un\s+\d+Planos\s+.*?\s+\d{8}$",
+    r"^#\s*(?P<base>.*?)\s*-\s*"
+    r"(?P<units>\d+)un\s+(?P<plans>\d+)Planos\s+"
+    r"(?P<paper>.+?)\s+(?P<date>\d{8})(?:_\d+)?$",
+    re.IGNORECASE,
+)
+PADRAO_IMP = re.compile(
+    r"^(?P<units>\d+)un(?:\s+cada arte)?(?:\s+cada_|\s+)(?P<plans>\d+)pl_"
+    r"(?P<paper>[^_]+)_(?P<base>.+?)_"
+    r"(?P<date>\d{8})(?:_\d+|\s+\(\d+\))?$",
     re.IGNORECASE,
 )
 
 
+@dataclass(frozen=True)
+class ProductionNameData:
+    base: str
+    units: int
+    plans: int
+    per_sheet: int
+    paper: str
+
+
+def parse_production_name(name: str) -> ProductionNameData | None:
+    stem = Path(name).stem.strip()
+    match = PADRAO_GRAFICA.match(stem) or PADRAO_IMP.match(stem)
+    if not match:
+        return None
+    units = int(match.group("units"))
+    plans = int(match.group("plans"))
+    if units < 1 or plans < 1:
+        return None
+    return ProductionNameData(
+        base=match.group("base").strip(),
+        units=units,
+        plans=plans,
+        per_sheet=max(1, math.ceil(units / plans)),
+        paper=match.group("paper").strip(),
+    )
+
+
 def limpar_nome_base(nome: str) -> str:
     nome = nome.strip()
-
-    correspondencia = PADRAO_GRAFICA.match(nome)
-
-    if correspondencia:
-        return correspondencia.group(1).strip()
+    production = parse_production_name(nome)
+    if production:
+        return production.base
 
     return nome.removeprefix("#").strip()
 

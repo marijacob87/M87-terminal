@@ -412,8 +412,8 @@ class CommandControllerMixin:
             self.input.setFocus()
             return
 
-        # RE continua disponível como atalho oculto para reiniciar o último app.
-        if code == "RE":
+        # RE permanece como alias oculto do comando visível REL.
+        if code in {"REL", "RE"}:
             from PySide6.QtCore import QTimer
 
             app = self.last_real_app
@@ -439,7 +439,7 @@ class CommandControllerMixin:
             QTimer.singleShot(6000, self.clear_session_result)
             return
 
-        if code in {"IMP", "GEO", "MON", "BAR"}:
+        if code in {"IMP", "ORG", "GEO", "MON", "BAR"}:
             from ui.tools_dialog import ToolsDialog
 
             dialog = getattr(self, "tools_dialog", None)

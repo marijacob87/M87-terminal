@@ -3,20 +3,64 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QCursor, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import (
+    QColor, QCursor, QFont, QFontMetrics, QIcon, QKeySequence, QShortcut,
+)
 from PySide6.QtWidgets import (
     QApplication, QDialog, QHBoxLayout, QLabel, QSizeGrip, QSizePolicy,
-    QTabWidget, QVBoxLayout, QWidget,
+    QStyle, QStyleOptionTab, QStylePainter, QTabBar, QTabWidget, QVBoxLayout,
+    QWidget,
 )
 
 from ui.code_generator_dialog import CodeGeneratorDialog
 from ui.geometry_widget import GeometryWidget
 from ui.imposition_dialog import ImpositionDialog
 from ui.montagem_dialog import MontagemDialog
+from ui.organize_pages_widget import OrganizePagesWidget
 from ui.widgets import DarkMetallicTitleBar
 
 ROOT = Path(__file__).resolve().parent.parent
 YELLOW = "#FFC400"
+
+
+class ToolsTabBar(QTabBar):
+    SHORTCUTS = ("", "⌘F16", "⌘F17", "⌘F18", "⌘F19")
+
+    def paintEvent(self, event):
+        painter = QStylePainter(self)
+        for index in range(self.count()):
+            option = QStyleOptionTab()
+            self.initStyleOption(option, index)
+            name = option.text
+            option.text = ""
+            painter.drawControl(QStyle.CE_TabBarTab, option)
+
+            selected = bool(option.state & QStyle.State_Selected)
+            name_font = QFont(self.font())
+            name_font.setBold(True)
+            shortcut_font = QFont(self.font())
+            shortcut_font.setBold(False)
+            shortcut_font.setPointSizeF(max(7.0, shortcut_font.pointSizeF() - 2.0))
+
+            shortcut = self.SHORTCUTS[index] if index < len(self.SHORTCUTS) else ""
+            name_width = QFontMetrics(name_font).horizontalAdvance(name)
+            shortcut_width = QFontMetrics(shortcut_font).horizontalAdvance(shortcut)
+            gap = 8 if shortcut else 0
+            left = option.rect.center().x() - (name_width + gap + shortcut_width) // 2
+
+            name_rect = option.rect.adjusted(left - option.rect.left(), 0, 0, 0)
+            name_rect.setWidth(name_width)
+            painter.setFont(name_font)
+            painter.setPen(QColor(YELLOW if selected else "#777777"))
+            painter.drawText(name_rect, Qt.AlignVCenter | Qt.AlignLeft, name)
+
+            shortcut_rect = option.rect.adjusted(
+                left + name_width + gap - option.rect.left(), 0, 0, 0
+            )
+            shortcut_rect.setWidth(shortcut_width)
+            painter.setFont(shortcut_font)
+            painter.setPen(QColor("#555555" if selected else "#444444"))
+            painter.drawText(shortcut_rect, Qt.AlignVCenter | Qt.AlignLeft, shortcut)
 
 
 class PdfDropOverlay(QWidget):
@@ -60,8 +104,8 @@ class PdfDropOverlay(QWidget):
 
 
 class ToolsDialog(QDialog):
-    TAB_ORDER = ("GEO", "IMP", "MON", "BAR")
-    TAB_LABELS = ("GEOMETRIA", "IMPOSIÇÃO", "MONTAGEM", "EAN-13")
+    TAB_ORDER = ("ORG", "GEO", "IMP", "MON", "BAR")
+    TAB_LABELS = ("ORGANIZAR PÁGINAS", "GEOMETRIA", "IMPOSIÇÃO", "MONTAGEM", "EAN-13")
 
     def __init__(self, parent=None, initial_tab="GEO"):
         super().__init__(parent)
@@ -72,8 +116,12 @@ class ToolsDialog(QDialog):
         self._drop_guard_active = False
         self._geometry_output_path = None
         self._loading_geometry_into_imp = False
+        self._syncing_pdf_state = False
+        self._org_work_path = None
+        self._org_work_payload = None
         self._setup_window()
         self._build_ui()
+        self._setup_shortcuts()
         self._prepare_drop_targets()
         self._restore_geometry()
         self.open_tab(initial_tab)
@@ -122,13 +170,16 @@ class ToolsDialog(QDialog):
         self.tabs.setObjectName("toolsTabs")
         self.tabs.setDocumentMode(True)
         self.tabs.setAcceptDrops(True)
+        self.tabs.setTabBar(ToolsTabBar(self.tabs))
 
-        imp = self._embed_dialog(ImpositionDialog(self), "IMP")
+        org = OrganizePagesWidget(self)
+        self._pages["ORG"] = org
         geo = GeometryWidget(self)
         self._pages["GEO"] = geo
+        imp = self._embed_dialog(ImpositionDialog(self), "IMP")
         mon = self._embed_dialog(MontagemDialog(self), "MON")
         bar_page = self._embed_dialog(CodeGeneratorDialog(self), "BAR")
-        for page, label in zip((geo, imp, mon, bar_page), self.TAB_LABELS):
+        for page, label in zip((org, geo, imp, mon, bar_page), self.TAB_LABELS):
             self.tabs.addTab(page, label)
         root.addWidget(self.tabs, 1)
 
@@ -136,6 +187,9 @@ class ToolsDialog(QDialog):
         self.drop_overlay.pdfDropped.connect(self._load_dropped_pdfs)
 
         self._pages["IMP"].pdfStateChanged.connect(self._on_imp_pdf_state_changed)
+        org.pdfStateChanged.connect(self._on_org_pdf_state_changed)
+        org.workPdfChanged.connect(self._on_org_work_pdf_changed)
+        geo.pdfStateChanged.connect(self._on_geo_pdf_state_changed)
         geo.appliedPdfChanged.connect(self._on_geometry_applied)
         self.tabs.currentChanged.connect(self._sync_geo_state)
 
@@ -157,6 +211,66 @@ class ToolsDialog(QDialog):
             QTabBar::tab:hover {{ color:rgba(255,196,0,.88); background:rgba(255,196,0,.045); }}
             QTabBar::tab:selected {{ color:{YELLOW}; background:rgba(255,196,0,.10); border-bottom:2px solid {YELLOW}; }}
         """)
+
+    def _setup_shortcuts(self):
+        tab_shortcuts = (
+            (Qt.Key_F16, "GEO"),
+            (Qt.Key_F17, "IMP"),
+            (Qt.Key_F18, "MON"),
+            (Qt.Key_F19, "BAR"),
+        )
+        self._tab_shortcuts = []
+        undo_shortcut = QShortcut(
+            QKeySequence.Undo,
+            self,
+            activated=self._undo_current_tab,
+        )
+        undo_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+        self._tab_shortcuts.append(undo_shortcut)
+        for key, code in tab_shortcuts:
+            shortcut = QShortcut(
+                QKeySequence(Qt.ControlModifier | key),
+                self,
+                activated=lambda target=code: self.open_tab(target),
+            )
+            self._tab_shortcuts.append(shortcut)
+
+        for key, step in ((Qt.Key_Right, 1), (Qt.Key_Left, -1)):
+            shortcut = QShortcut(
+                QKeySequence(Qt.ControlModifier | key),
+                self,
+                activated=lambda offset=step: self._change_tab(offset),
+            )
+            self._tab_shortcuts.append(shortcut)
+
+    def _undo_current_tab(self):
+        focus = QApplication.focusWidget()
+        if focus and self._undo_focused_editor(focus):
+            return
+        code = self.TAB_ORDER[self.tabs.currentIndex()]
+        page = self._pages.get(code)
+        if code == "ORG" and page:
+            page._undo_action()
+        elif code == "GEO" and page and hasattr(page, "undo_last_action"):
+            page.undo_last_action()
+
+    @staticmethod
+    def _undo_focused_editor(widget):
+        if hasattr(widget, "isReadOnly") and widget.isReadOnly():
+            return False
+        if hasattr(widget, "isUndoAvailable") and widget.isUndoAvailable():
+            widget.undo()
+            return True
+        document = widget.document() if hasattr(widget, "document") else None
+        if document and document.isUndoAvailable():
+            widget.undo()
+            return True
+        return False
+
+    def _change_tab(self, step):
+        count = self.tabs.count()
+        if count:
+            self.tabs.setCurrentIndex((self.tabs.currentIndex() + step) % count)
 
     def _embed_dialog(self, dialog, code):
         self._pages[code] = dialog
@@ -210,6 +324,13 @@ class ToolsDialog(QDialog):
         self.raise_()
         self.activateWindow()
 
+    def open_pdfs(self, paths, tab="IMP"):
+        """Carrega PDFs na janela compartilhada e abre a ferramenta pedida."""
+        paths = list(paths or [])
+        if paths:
+            self._set_pdf_paths(paths)
+        self.open_tab(tab)
+
     @staticmethod
     def _pdf_paths(mime_data):
         paths, seen = [], set()
@@ -234,6 +355,7 @@ class ToolsDialog(QDialog):
         return self.tabs.currentIndex() in (
             self.TAB_ORDER.index("GEO"),
             self.TAB_ORDER.index("IMP"),
+            self.TAB_ORDER.index("ORG"),
         )
 
     def _load_dropped_pdfs(self, paths):
@@ -243,11 +365,24 @@ class ToolsDialog(QDialog):
         # bloqueio impede carregar o lote duas vezes sem alterar a experiência.
         self._drop_guard_active = True
         try:
-            self._last_drop_paths = list(paths)
-            self._pages["IMP"].load_pdfs(paths)
-            self._pages["GEO"].set_pdf_state(paths)
+            self._set_pdf_paths(paths)
         finally:
             QTimer.singleShot(0, self._release_drop_guard)
+
+    def _set_pdf_paths(self, paths):
+        self._last_drop_paths = list(paths)
+        self._org_work_path = None
+        self._org_work_payload = None
+        self._syncing_pdf_state = True
+        try:
+            self._pages["ORG"].load_pdfs(self._last_drop_paths)
+            self._pages["IMP"].load_pdfs(self._last_drop_paths)
+            self._pages["GEO"].set_pdf_state(self._last_drop_paths)
+        finally:
+            self._syncing_pdf_state = False
+        self._pages["ORG"].set_sync_status(
+            self._tools_have_path(self._last_drop_paths[0])
+        )
 
     def _release_drop_guard(self):
         self._drop_guard_active = False
@@ -290,6 +425,39 @@ class ToolsDialog(QDialog):
     def eventFilter(self, watched, event):
         event_type = event.type()
         drag_types = (QEvent.Type.DragEnter, QEvent.Type.DragMove)
+
+        if (
+            event_type == QEvent.Type.KeyPress
+            and self.isVisible()
+            and self._event_belongs_to_tools(watched)
+            and event.matches(QKeySequence.Paste)
+        ):
+            paths = self._clipboard_pdf_paths()
+            if paths:
+                self._set_pdf_paths(paths)
+                return True
+
+        if (
+            event_type == QEvent.Type.KeyPress
+            and self.isVisible()
+            and self._event_belongs_to_tools(watched)
+            and event.modifiers() & Qt.ControlModifier
+        ):
+            tab_by_key = {
+                Qt.Key_F16: "GEO",
+                Qt.Key_F17: "IMP",
+                Qt.Key_F18: "MON",
+                Qt.Key_F19: "BAR",
+            }
+            if event.key() in tab_by_key:
+                self.open_tab(tab_by_key[event.key()])
+                return True
+            if event.key() == Qt.Key_Right:
+                self._change_tab(1)
+                return True
+            if event.key() == Qt.Key_Left:
+                self._change_tab(-1)
+                return True
 
         if event_type in drag_types:
             if (
@@ -338,10 +506,96 @@ class ToolsDialog(QDialog):
             event.ignore()
 
     def _on_imp_pdf_state_changed(self, paths):
-        if self._loading_geometry_into_imp:
+        if self._loading_geometry_into_imp or self._syncing_pdf_state:
             return
         self._last_drop_paths = list(paths)
         self._pages["GEO"].set_pdf_state(self._last_drop_paths)
+
+    def _on_org_pdf_state_changed(self, paths):
+        self._last_drop_paths = list(paths)
+        self._org_work_path = None
+        self._org_work_payload = None
+        if self._syncing_pdf_state:
+            return
+        self._syncing_pdf_state = True
+        try:
+            self._pages["IMP"].load_pdfs(self._last_drop_paths)
+            self._pages["GEO"].set_pdf_state(self._last_drop_paths)
+        finally:
+            self._syncing_pdf_state = False
+        if self._last_drop_paths:
+            self._pages["ORG"].set_sync_status(
+                self._tools_have_path(self._last_drop_paths[0])
+            )
+
+    def _tools_have_path(self, path):
+        desired = Path(path).expanduser().resolve()
+        for code in ("GEO", "IMP"):
+            loaded = getattr(self._pages[code], "pdf_path", None)
+            if not loaded or Path(loaded).expanduser().resolve() != desired:
+                return False
+        return True
+
+    def _on_org_work_pdf_changed(self, payload):
+        path = Path(payload.get("path", "")).expanduser().resolve()
+        source = Path(payload.get("source", "")).expanduser().resolve()
+        if not path.is_file():
+            return
+        self._org_work_path = str(path)
+        self._org_work_payload = {"path": str(path), "source": str(source)}
+        self._apply_org_work_to_tools()
+
+    def _apply_org_work_to_tools(self):
+        payload = self._org_work_payload
+        if not payload:
+            return
+        path = Path(payload["path"])
+        source = Path(payload["source"])
+        if not path.is_file():
+            return
+        self._syncing_pdf_state = True
+        imp_ok = False
+        geo_ok = False
+        try:
+            imp = self._pages["IMP"]
+            imp_path = getattr(imp, "pdf_path", None)
+            if not imp_path or Path(imp_path).resolve() != path.resolve():
+                imp.load_pdf(str(path), naming_path=str(source))
+            imp_path = getattr(imp, "pdf_path", None)
+            imp_ok = bool(imp_path and Path(imp_path).resolve() == path.resolve())
+            geo = self._pages["GEO"]
+            geo_path = getattr(geo, "pdf_path", None)
+            if not geo_path or Path(geo_path).resolve() != path.resolve():
+                geo.set_pdf_state([str(path)])
+            geo_path = getattr(geo, "pdf_path", None)
+            geo_ok = bool(geo_path and Path(geo_path).resolve() == path.resolve())
+        finally:
+            self._syncing_pdf_state = False
+        self._pages["ORG"].set_sync_status(imp_ok and geo_ok)
+
+    def _on_geo_pdf_state_changed(self, paths):
+        if self._syncing_pdf_state or not self._org_work_payload or not paths:
+            return
+        desired = Path(self._org_work_payload["path"]).resolve()
+        loaded = Path(paths[0]).expanduser().resolve()
+        if loaded == desired:
+            self._apply_org_work_to_tools()
+
+    @staticmethod
+    def _clipboard_pdf_paths():
+        clipboard = QApplication.clipboard()
+        mime_data = clipboard.mimeData() if clipboard else None
+        paths = ToolsDialog._pdf_paths(mime_data)
+        if paths:
+            return paths
+        text = clipboard.text().strip() if clipboard else ""
+        if text.startswith("file://"):
+            from PySide6.QtCore import QUrl
+            text = QUrl(text).toLocalFile()
+        candidate = Path(text).expanduser() if text else None
+        if candidate and candidate.is_file() and candidate.suffix.casefold() == ".pdf":
+            return [str(candidate.resolve())]
+        return []
 
     def _on_geometry_applied(self, path):
         self._geometry_output_path = str(path)
@@ -354,9 +608,11 @@ class ToolsDialog(QDialog):
         if not geometry_output.is_file():
             return False
         imp = self._pages["IMP"]
+        geo = self._pages["GEO"]
+        original_path = getattr(geo, "pdf_path", None)
         self._loading_geometry_into_imp = True
         try:
-            imp.load_pdf(str(geometry_output))
+            imp.load_pdf(str(geometry_output), naming_path=original_path)
             loaded_path = getattr(imp, "pdf_path", None)
             if loaded_path and Path(loaded_path).resolve() == geometry_output:
                 self._geometry_output_path = None
@@ -366,20 +622,43 @@ class ToolsDialog(QDialog):
             self._loading_geometry_into_imp = False
 
     def _sync_geo_state(self, index=0):
+        if self._org_work_payload:
+            self._apply_org_work_to_tools()
         if index == self.TAB_ORDER.index("IMP"):
+            imp = self._pages["IMP"]
+            if hasattr(imp, "refresh_paper_library"):
+                imp.refresh_paper_library()
             self._load_geometry_output_into_imp()
             return
         if index == self.TAB_ORDER.index("GEO"):
-            self._pages["GEO"].set_pdf_state(self._last_drop_paths)
+            paths = [self._org_work_path] if self._org_work_path else self._last_drop_paths
+            self._pages["GEO"].set_pdf_state(paths)
+            return
 
     def _close_tools(self):
-        imp = self._pages.get("IMP")
-        if imp and hasattr(imp, "_clear_batch"):
-            imp._clear_batch()
-        geo = self._pages.get("GEO")
-        if geo and hasattr(geo, "clear_pdf"):
-            geo.clear_pdf()
         self.close()
+
+    def _release_all_pdfs(self):
+        self._last_drop_paths = []
+        self._org_work_path = None
+        self._org_work_payload = None
+        self._geometry_output_path = None
+        self._loading_geometry_into_imp = False
+        self._syncing_pdf_state = True
+        try:
+            org = self._pages.get("ORG")
+            if org and hasattr(org, "clear_pdf"):
+                org.clear_pdf()
+            imp = self._pages.get("IMP")
+            if imp and hasattr(imp, "_clear_batch"):
+                imp._clear_batch()
+            geo = self._pages.get("GEO")
+            if geo and hasattr(geo, "set_pdf_state"):
+                # Se houver worker ativo, GEO conserva este pedido vazio e
+                # executa a liberação assim que o processamento terminar.
+                geo.set_pdf_state([])
+        finally:
+            self._syncing_pdf_state = False
 
     def _title_press(self, event):
         if event.button() == Qt.LeftButton:
@@ -402,12 +681,7 @@ class ToolsDialog(QDialog):
             self.restoreGeometry(geometry)
 
     def closeEvent(self, event):
-        imp = self._pages.get("IMP")
-        if imp and hasattr(imp, "_clear_batch") and getattr(imp, "batch_items", None):
-            imp._clear_batch()
-        geo = self._pages.get("GEO")
-        if geo and hasattr(geo, "clear_pdf"):
-            geo.clear_pdf()
+        self._release_all_pdfs()
         self.settings.setValue("tools_dialog/geometry", self.saveGeometry())
         super().closeEvent(event)
 

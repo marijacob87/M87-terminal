@@ -2,9 +2,10 @@ import os
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCursor, QIcon
+from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
+    QApplication,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -23,6 +24,28 @@ from ui.widgets import (
     HorizontalResizeGrip,
     SectionLabel,
 )
+
+
+class ChatGptIcon(QLabel):
+    """Símbolo vetorial monocromático, sem imagem ou fundo colorido."""
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor(175, 175, 175, 224), 0.75)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.translate(self.rect().center())
+        painter.translate(0, 1)
+
+        petal = QRectF(-1.45, -4.1, 2.9, 4.8)
+        for angle in range(0, 360, 60):
+            painter.save()
+            painter.rotate(angle)
+            painter.drawEllipse(petal)
+            painter.restore()
 
 
 class WindowUiMixin:
@@ -46,7 +69,13 @@ class WindowUiMixin:
 
         self.normal_height = height
         self.resize(width, height)
-        self.move(state["x"], state["y"])
+        screen = QApplication.primaryScreen()
+
+        if screen:
+            self.locked_window_position = screen.availableGeometry().topLeft()
+            self.move(self.locked_window_position)
+        else:
+            self.locked_window_position = self.pos()
 
     def build_ui(self):
         central = QWidget()
@@ -79,6 +108,14 @@ class WindowUiMixin:
         self.code_button.setToolTip("Abrir projeto no VS Code")
         self.code_button.mousePressEvent = lambda event: self.open_project_in_vscode()
 
+        self.codex_button = ChatGptIcon()
+        self.codex_button.setObjectName("codexButton")
+        self.codex_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.codex_button.setToolTip("Abrir Codex para alterar o M87")
+        self.codex_button.setAlignment(Qt.AlignCenter)
+        self.codex_button.setFixedSize(17, 18)
+        self.codex_button.mousePressEvent = lambda event: self.open_codex()
+
         self.reference_button = QLabel("▤")
         self.reference_button.setObjectName("referenceButton")
         self.reference_button.setCursor(QCursor(Qt.PointingHandCursor))
@@ -97,6 +134,16 @@ class WindowUiMixin:
         self.minimize_button.setToolTip("Minimizar")
         self.minimize_button.mousePressEvent = lambda event: self.showMinimized()
 
+        for button, width in (
+            (self.code_button, 22),
+            (self.codex_button, 17),
+            (self.reference_button, 17),
+            (self.reload_button, 17),
+            (self.minimize_button, 17),
+        ):
+            button.setFixedSize(width, 18)
+            button.setAlignment(Qt.AlignCenter)
+
         self.title_container = DarkMetallicTitleBar()
         title_layout = QHBoxLayout(self.title_container)
         title_layout.setContentsMargins(14, 0, 9, 0)
@@ -104,6 +151,7 @@ class WindowUiMixin:
         title_layout.addWidget(self.title)
         title_layout.addStretch()
         title_layout.addWidget(self.code_button)
+        title_layout.addWidget(self.codex_button)
         title_layout.addWidget(self.reference_button)
         title_layout.addWidget(self.reload_button)
         title_layout.addWidget(self.minimize_button)
@@ -147,6 +195,16 @@ class WindowUiMixin:
             )
         except Exception as error:
             print(f"ERRO AO ABRIR VS CODE: {error}")
+
+    def open_codex(self):
+        try:
+            subprocess.Popen(
+                ["open", "-b", "com.openai.codex"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as error:
+            print(f"ERRO AO ABRIR CODEX: {error}")
 
     def build_status(self):
         # O status pertence ao cabeçalho e não participa da distribuição
@@ -248,6 +306,10 @@ class WindowUiMixin:
             self.section_labels[section] = SectionLabel(section)
 
         self.content_layout.addWidget(self.commands_container)
+        # Separação real entre a última ferramenta e o divisor do prompt.
+        # Evita que o traço atravesse "MP MUPI Print" por arredondamento das
+        # métricas da fonte no macOS.
+        self.content_layout.addSpacing(8)
 
         self.divider_2 = QLabel("────────────────────────────────────")
         self.divider_2.setObjectName("divider")
@@ -257,7 +319,7 @@ class WindowUiMixin:
         self.content_layout.addWidget(self.divider_2)
 
     def build_input(self):
-        self.input = TerminalInput("m87@macstudio ~ %")
+        self.input = TerminalInput("m87@ -")
         self.input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.input.setFixedHeight(18)
         self.input.setObjectName("terminalInput")

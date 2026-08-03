@@ -28,6 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 from ui.widgets import DarkMetallicTitleBar
+from ui.tool_design import (
+    TOOL_CONTROLS_WIDTH, TOOL_STANDARD_QSS, set_tool_role,
+)
 
 from core.code_tools import (
     generate_ean13_svg,
@@ -52,17 +55,16 @@ QLabel#statusOk {{ color: #70d878; font-weight: 700; }}
 QLabel#statusError {{ color: #FFC400; font-weight: 700; }}
 QLabel#value {{ color: white; font-weight: 700; }}
 QFrame#line {{ background: rgba(255,196,0,.16); max-height: 1px; min-height: 1px; }}
-QFrame#panel {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,196,0,.16); border-radius: 8px; }}
-QLineEdit, QTextEdit, QSpinBox, QComboBox {{ background: rgba(255,255,255,.07); color: white; border: 1px solid rgba(255,255,255,.14); border-radius: 5px; padding: 6px 8px; min-height: 22px; }}
-QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus {{ border: 1px solid #FFC400; }}
+QFrame#panel {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; }}
+QLineEdit, QTextEdit, QSpinBox, QComboBox {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 0 5px; min-height: 20px; }}
 QPushButton {{ background: rgba(255,255,255,.055); border: 1px solid rgba(255,196,0,.25); border-radius: 6px; padding: 7px 12px; color: rgba(255,196,0,.82); font-weight: 600; }}
 QPushButton:hover {{ color: #fff0a0; border-color: rgba(255,196,0,.55); }}
 QPushButton:pressed {{ background: rgba(255,196,0,.12); }}
 QPushButton#secondary {{ background: transparent; color: rgba(255,196,0,.82); border: 1px solid rgba(255,196,0,.25); }}
-QTabWidget::pane {{ border: 1px solid rgba(255,196,0,.16); border-radius: 8px; top: -1px; background: rgba(255,255,255,.015); }}
-QTabBar::tab {{ background: rgba(255,255,255,.025); color: rgba(255,255,255,.55); border: 1px solid rgba(255,196,0,.13); padding: 9px 24px; min-width: 120px; font-weight: 600; }}
-QTabBar::tab:selected {{ color: #FFC400; border-color: #FFC400; background: rgba(255,196,0,.08); }}
-"""
+QTabWidget::pane {{ border: 1px solid rgba(255,255,255,.08); border-radius: 7px; top: -1px; background: rgba(255,255,255,.015); }}
+QTabBar::tab {{ background: rgba(255,255,255,.025); color: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.08); padding: 7px 20px; min-width: 120px; font-weight: 600; }}
+QTabBar::tab:selected {{ color: #FFC400; border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.065); }}
+""" + TOOL_STANDARD_QSS
 
 
 class SvgPreview(QLabel):
@@ -201,6 +203,7 @@ class CodeGeneratorDialog(QDialog):
         outer.setContentsMargins(0, 0, 0, 0)
         self.box = QWidget()
         self.box.setObjectName("barBox")
+        self.box.setProperty("toolSurface", True)
         outer.addWidget(self.box)
 
         root = QVBoxLayout(self.box)
@@ -249,11 +252,13 @@ class CodeGeneratorDialog(QDialog):
     def _panel(self):
         frame = QFrame()
         frame.setObjectName("panel")
+        set_tool_role(frame, "card")
         return frame
 
     def _section(self, text):
         label = QLabel(text)
         label.setObjectName("sectionTitle")
+        set_tool_role(label, "cardTitle")
         return label
 
     def _line(self):
@@ -264,14 +269,14 @@ class CodeGeneratorDialog(QDialog):
     def _build_ean_tab(self):
         page = QWidget()
         layout = QHBoxLayout(page)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(24)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(12)
 
         left = self._panel()
-        left.setFixedWidth(390)
+        left.setFixedWidth(TOOL_CONTROLS_WIDTH)
         form = QVBoxLayout(left)
-        form.setContentsMargins(18, 16, 18, 16)
-        form.setSpacing(10)
+        form.setContentsMargins(11, 8, 11, 9)
+        form.setSpacing(7)
         form.addWidget(self._section("DADOS"))
         form.addWidget(QLabel("Número (12 ou 13 dígitos)"))
         self.ean_input = QLineEdit()
@@ -336,14 +341,14 @@ class CodeGeneratorDialog(QDialog):
     def _build_qr_tab(self):
         page = QWidget()
         layout = QHBoxLayout(page)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(24)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(12)
 
         left = self._panel()
-        left.setFixedWidth(390)
+        left.setFixedWidth(TOOL_CONTROLS_WIDTH)
         form = QVBoxLayout(left)
-        form.setContentsMargins(18, 16, 18, 16)
-        form.setSpacing(10)
+        form.setContentsMargins(11, 8, 11, 9)
+        form.setSpacing(7)
         form.addWidget(self._section("DADOS"))
         form.addWidget(QLabel("Tipo / sugestão rápida"))
         self.qr_template = QComboBox()
@@ -395,8 +400,8 @@ class CodeGeneratorDialog(QDialog):
 
         right = self._panel()
         preview_layout = QVBoxLayout(right)
-        preview_layout.setContentsMargins(18, 16, 18, 16)
-        preview_layout.setSpacing(12)
+        preview_layout.setContentsMargins(11, 8, 11, 9)
+        preview_layout.setSpacing(7)
         preview_layout.addWidget(self._section("PRÉVIA"))
         self.qr_preview = SvgPreview(max_square=430)
         preview_layout.addWidget(self.qr_preview, 1)
@@ -425,14 +430,14 @@ class CodeGeneratorDialog(QDialog):
     def _build_reader_tab(self):
         page = QWidget()
         layout = QHBoxLayout(page)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(24)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(12)
 
         left = self._panel()
-        left.setFixedWidth(430)
+        left.setFixedWidth(TOOL_CONTROLS_WIDTH)
         form = QVBoxLayout(left)
-        form.setContentsMargins(18, 16, 18, 16)
-        form.setSpacing(12)
+        form.setContentsMargins(11, 8, 11, 9)
+        form.setSpacing(7)
         form.addWidget(self._section("FONTE"))
         self.reader_drop = QLabel(
             "Arraste um PDF ou imagem aqui\n"

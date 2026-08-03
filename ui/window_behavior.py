@@ -1,5 +1,3 @@
-from PySide6.QtCore import Qt
-
 from core.state import save_window_state
 
 
@@ -36,35 +34,26 @@ class WindowBehaviorMixin:
         # Nunca grava no estado uma altura temporária de conteúdo variável.
         # Assim o Terminal também volta compacto após reiniciar.
         height = self.normal_height
+        position = getattr(
+            self,
+            "locked_window_position",
+            geometry.topLeft(),
+        )
 
         save_window_state(
-            geometry.x(),
-            geometry.y(),
+            position.x(),
+            position.y(),
             geometry.width(),
             height,
         )
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.drag_position = (
-                event.globalPosition().toPoint()
-                - self.frameGeometry().topLeft()
-            )
-            event.accept()
-            return
-
+        # A janela principal fica fixa no canto superior esquerdo.
+        # Diálogos e ferramentas preservam o comportamento próprio de arraste.
+        self.drag_position = None
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if self.drag_position and event.buttons() == Qt.LeftButton:
-            self.move(
-                event.globalPosition().toPoint()
-                - self.drag_position
-            )
-            self.schedule_state_save()
-            event.accept()
-            return
-
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):

@@ -1,12 +1,15 @@
 import json
 import threading
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QMainWindow
+from AppKit import NSApplication
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 from core.config import APP_MIN_HEIGHT, COMMANDS_FILE
+from core.global_hotkey import GlobalF19Hotkey
 from core.styles import APP_STYLE
 from ui.command_controller import CommandControllerMixin
+from ui.focus_behavior import SelectSpinBoxTextOnTab
 from ui.pdf_context import PdfContextMixin
 from ui.status_controller import StatusControllerMixin
 from ui.window_behavior import WindowBehaviorMixin
@@ -21,6 +24,8 @@ class M87Term(
     WindowUiMixin,
     QMainWindow,
 ):
+    client_search_finished = Signal(int, object)
+
     def __init__(self):
         super().__init__()
 
@@ -37,6 +42,8 @@ class M87Term(
         self.weather_temp = "--°C"
         self.status_data = {}
         self.last_real_app = None
+        self._client_search_request = 0
+        self.client_search_finished.connect(self._finish_client_subfolder_search)
 
         self.normal_height = APP_MIN_HEIGHT
         self.auto_resizing = False
@@ -56,11 +63,73 @@ class M87Term(
 
         self.setup_window()
         self.build_ui()
+        self._spinbox_focus_filter = SelectSpinBoxTextOnTab(self)
+        QApplication.instance().installEventFilter(self._spinbox_focus_filter)
         self.apply_style()
         self.rebuild_command_grid()
         self.start_timers()
         self.clear_suggestions()
+        self._f19_hotkey = GlobalF19Hotkey(self)
+        self._f19_hotkey.activated.connect(self.activate_terminal_input)
+        self._f19_hotkey.start()
+        QApplication.instance().aboutToQuit.connect(self._f19_hotkey.stop)
+        threading.Thread(
+            target=self._warm_client_search_cache,
+            name="m87-client-search-cache",
+            daemon=True,
+        ).start()
 
+    def activate_terminal_input(self):
+        if self.isMinimized():
+            self.showNormal()
+        elif not self.isVisible():
+            self.show()
+        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        self.raise_()
+        self.activateWindow()
+        self.input.setFocus()
+
+
+    @staticmethod
+    def _warm_client_search_cache():
+        try:
+            from core.client_search import warm_client_search_cache
+            warm_client_search_cache()
+        except Exception as error:
+            print(f"[CLIENTES] Não foi possível criar o índice: {error}")
+
+    def start_client_subfolder_search(self, query):
+        from core.client_search import search_client_subfolders
+
+        self._client_search_request += 1
+        request_id = self._client_search_request
+        self.session_result_label.setText("Buscando pasta do cliente…")
+        self.session_result_label.show()
+        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+
+        def search():
+            results = search_client_subfolders(query)
+            self.client_search_finished.emit(request_id, results)
+
+        threading.Thread(
+            target=search,
+            name="m87-client-subfolder-search",
+            daemon=True,
+        ).start()
+
+    def _finish_client_subfolder_search(self, request_id, results):
+        if request_id != self._client_search_request:
+            return
+
+        self.clear_session_result()
+
+        if results:
+            from core.client_search import open_path
+            open_path(results[0])
+            return
+
+        self.input.setPlaceholderText("pasta do cliente não encontrada")
+        QTimer.singleShot(1200, lambda: self.input.setPlaceholderText(""))
 
     def sync_recent_finder_folders(self):
         if not self._finder_sync_lock.acquire(blocking=False):

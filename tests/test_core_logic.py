@@ -9,6 +9,10 @@ from core.code_tools import (
     ean13_pattern,
     normalize_ean13,
 )
+from core.client_search import (
+    search_client_subfolders,
+    split_file_search,
+)
 from core.montagem_calculator import calcular_montagem, obter_opcoes
 from core.pdf_rename import calcular_planos, gerar_novo_nome, limpar_nome_base
 from core.state import DEFAULT_STATE, load_window_state, save_window_state
@@ -99,6 +103,40 @@ class SuggestionTests(unittest.TestCase):
     def test_internal_developer_commands_stay_hidden(self):
         self.assertEqual(get_suggestions("#git atualização", self.commands), [])
 
+    def test_folder_commands_stay_hidden(self):
+        self.assertEqual(get_suggestions("//Santa Catarina", self.commands), [])
+        self.assertEqual(get_suggestions("/#Santa Catarina", self.commands), [])
+
+
+class ClientSearchTests(unittest.TestCase):
+    def test_finds_folder_directly_inside_a_client(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trabalhos = Path(directory)
+            target = trabalhos / "A" / "Angelo Moreira" / "Santa Catarina"
+            target.mkdir(parents=True)
+
+            with patch("core.client_search.TRABALHOS_PATH", trabalhos):
+                self.assertEqual(
+                    search_client_subfolders("santa catarina"),
+                    [target],
+                )
+
+    def test_does_not_search_below_the_client_subfolder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trabalhos = Path(directory)
+            (trabalhos / "A" / "Angelo Moreira" / "Projetos" / "Antigo").mkdir(
+                parents=True
+            )
+
+            with patch("core.client_search.TRABALHOS_PATH", trabalhos):
+                self.assertEqual(search_client_subfolders("Antigo"), [])
+
+    def test_splits_name_and_file_extension(self):
+        self.assertEqual(split_file_search("deluxe .pdf"), ("deluxe", ".pdf"))
+        self.assertEqual(
+            split_file_search("Santa Catarina"),
+            ("Santa Catarina", None),
+        )
 
 class StateTests(unittest.TestCase):
     def test_round_trip_uses_atomic_temporary_file(self):

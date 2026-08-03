@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-import fitz
 import pikepdf
 
 MM_TO_PT = 72.0 / 25.4
@@ -68,7 +67,6 @@ class CropMarkSettings:
     offset_mm: float = 3.0
     length_mm: float = 5.0
     thickness_pt: float = 0.25
-    auto_expand_media: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,6 +74,7 @@ class GeometrySettings:
     format: FormatSettings | None = None
     media: BoxSettings | None = None
     trim: BoxSettings | None = None
+    rotation_degrees: int = 0
     remove_outside_trim: bool = False
     crop_marks: CropMarkSettings = field(default_factory=CropMarkSettings)
 
@@ -181,6 +180,81 @@ def _wrap_page_contents(pdf, page, matrix) -> None:
         page.obj.Contents = pikepdf.Array([prefix, *contents, suffix])
     else:
         page.obj.Contents = pikepdf.Array([prefix, contents, suffix])
+
+
+def _transform_rect_affine(rect, matrix) -> list[float]:
+    a, b, c, d, e, f = matrix
+    x0, y0, x1, y1 = _numbers(rect)
+    points = (
+        (a * x + c * y + e, b * x + d * y + f)
+        for x, y in ((x0, y0), (x0, y1), (x1, y0), (x1, y1))
+    )
+    transformed = tuple(points)
+    xs = tuple(point[0] for point in transformed)
+    ys = tuple(point[1] for point in transformed)
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def _transform_points_affine(values, matrix) -> pikepdf.Array:
+    a, b, c, d, e, f = matrix
+    numbers = [float(value) for value in values]
+    result = []
+    for index in range(0, len(numbers) - 1, 2):
+        x, y = numbers[index], numbers[index + 1]
+        result.extend((a * x + c * y + e, b * x + d * y + f))
+    return pikepdf.Array(result)
+
+
+def _rotate_page_clockwise(pdf, page) -> None:
+    """Gira fisicamente uma página 90° sem rasterizar seu conteúdo."""
+    media = _box(page, "/MediaBox")
+    x0, y0, x1, y1 = media
+    width = x1 - x0
+    height = y1 - y0
+    matrix = (0.0, -1.0, 1.0, 0.0, -y0, x1)
+    prefix = pdf.make_stream(
+        b"q\n0 -1 1 0 "
+        + f"{-y0:.10f} {x1:.10f} cm\n".encode("ascii")
+    )
+    suffix = pdf.make_stream(b"\nQ\n")
+    contents = page.obj.get("/Contents")
+    if contents is None:
+        page.obj.Contents = pikepdf.Array([prefix, suffix])
+    elif isinstance(contents, pikepdf.Array):
+        page.obj.Contents = pikepdf.Array([prefix, *contents, suffix])
+    else:
+        page.obj.Contents = pikepdf.Array([prefix, contents, suffix])
+
+    for box_name in ("/MediaBox", "/CropBox", "/BleedBox", "/TrimBox", "/ArtBox"):
+        box = page.obj.get(box_name)
+        if box is not None:
+            page.obj[box_name] = pikepdf.Array(
+                _transform_rect_affine(box, matrix)
+            )
+    page.obj.MediaBox = pikepdf.Array([0, 0, height, width])
+
+    for annotation in page.obj.get("/Annots", ()):
+        if annotation.get("/Rect") is not None:
+            annotation.Rect = pikepdf.Array(
+                _transform_rect_affine(annotation.Rect, matrix)
+            )
+        if annotation.get("/QuadPoints") is not None:
+            annotation.QuadPoints = _transform_points_affine(
+                annotation.QuadPoints, matrix
+            )
+
+
+def normalize_page_rotation(pdf, page, additional_degrees: int = 0) -> None:
+    """Converte /Rotate em conteúdo e caixas, deixando a página canônica."""
+    current = int(page.obj.get("/Rotate", 0)) % 360
+    additional = int(additional_degrees) % 360
+    total = (current + additional) % 360
+    if total % 90:
+        raise GeometryError("A rotação deve ser múltipla de 90°.")
+    if "/Rotate" in page.obj:
+        del page.obj["/Rotate"]
+    for _ in range(total // 90):
+        _rotate_page_clockwise(pdf, page)
 
 
 def _resize_format(pdf, page, settings: FormatSettings) -> None:
@@ -304,14 +378,6 @@ def _add_crop_marks(pdf, page, settings: CropMarkSettings) -> None:
         raise GeometryError("Os valores das marcas de corte são inválidos.")
     trim = _box(page, "/TrimBox", _box(page, "/MediaBox"))
     segments = tuple(_crop_mark_segments(trim, settings))
-    if settings.auto_expand_media:
-        media = list(_box(page, "/MediaBox"))
-        for x0, y0, x1, y1 in segments:
-            media[0] = min(media[0], x0, x1)
-            media[1] = min(media[1], y0, y1)
-            media[2] = max(media[2], x0, x1)
-            media[3] = max(media[3], y0, y1)
-        page.obj.MediaBox = pikepdf.Array(media)
     commands = ["q", "0 0 0 1 K", f"{settings.thickness_pt:.4f} w"]
     commands.extend(
         f"{x0:.5f} {y0:.5f} m {x1:.5f} {y1:.5f} l S"
@@ -335,45 +401,106 @@ def _page_indexes(page_count: int, indexes: Iterable[int]) -> tuple[int, ...]:
     return unique
 
 
-def _fully_outside(rect: fitz.Rect, trim: fitz.Rect) -> bool:
+def _fully_outside(rect, trim) -> bool:
     return (
-        rect.x1 <= trim.x0 or rect.x0 >= trim.x1
-        or rect.y1 <= trim.y0 or rect.y0 >= trim.y1
+        rect[2] <= trim[0] or rect[0] >= trim[2]
+        or rect[3] <= trim[1] or rect[1] >= trim[3]
     )
 
 
-def _remove_objects_outside_trim(path: Path, indexes: tuple[int, ...]) -> None:
-    """Limpeza conservadora: só cria redações sobre limites totalmente externos."""
-    document = fitz.open(path)
-    temporary = path.with_name(f".{path.stem}_clean.pdf")
-    try:
-        for index in indexes:
-            page = document[index]
-            trim = fitz.Rect(page.trimbox)
-            candidates = []
-            for block in page.get_text("blocks"):
-                rect = fitz.Rect(block[:4])
-                if not rect.is_empty and _fully_outside(rect, trim):
-                    candidates.append(rect)
-            for image in page.get_image_info():
-                rect = fitz.Rect(image.get("bbox", ()))
-                if not rect.is_empty and _fully_outside(rect, trim):
-                    candidates.append(rect)
-            for drawing in page.get_drawings():
-                rect = fitz.Rect(drawing.get("rect", ()))
-                if not rect.is_empty and _fully_outside(rect, trim):
-                    candidates.append(rect)
-            for rect in candidates:
-                page.add_redact_annot(rect, fill=False, cross_out=False)
-            if candidates:
-                page.apply_redactions(images=1, graphics=1, text=0)
-        document.save(temporary, garbage=4, deflate=True, clean=False)
-        document.close()
-        os.replace(temporary, path)
-    except Exception:
-        document.close()
-        temporary.unlink(missing_ok=True)
-        raise
+def _matrix_multiply(left, right):
+    a, b, c, d, e, f = left
+    g, h, i, j, k, l = right
+    return (
+        a * g + c * h, b * g + d * h,
+        a * i + c * j, b * i + d * j,
+        a * k + c * l + e, b * k + d * l + f,
+    )
+
+
+def _transform_xy(matrix, x, y):
+    a, b, c, d, e, f = matrix
+    return a * x + c * y + e, b * x + d * y + f
+
+
+def _path_points(operator, operands):
+    values = [float(value) for value in operands]
+    if operator in {"m", "l"}:
+        return [(values[0], values[1])]
+    if operator == "c":
+        return list(zip(values[::2], values[1::2]))
+    if operator == "v":
+        return list(zip(values[::2], values[1::2]))
+    if operator == "y":
+        return list(zip(values[::2], values[1::2]))
+    if operator == "re":
+        x, y, width, height = values
+        return [(x, y), (x + width, y + height)]
+    return []
+
+
+def _remove_objects_outside_trim(pdf, indexes: tuple[int, ...]) -> None:
+    """Remove apenas caminhos vetoriais comprovadamente externos à TrimBox.
+
+    O conteúdo não é renderizado nem redimensionado. Textos, imagens, máscaras,
+    transparências e objetos que tocam a TrimBox são preservados.
+    """
+    path_operators = {"m", "l", "c", "v", "y", "h", "re"}
+    paint_operators = {"S", "s", "f", "F", "f*", "B", "B*", "b", "b*"}
+    for index in indexes:
+        page = pdf.pages[index]
+        trim = _box(page, "/TrimBox", _box(page, "/MediaBox"))
+        instructions = pikepdf.parse_content_stream(page)
+        output = []
+        buffered = []
+        points = []
+        current_matrix = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+        matrix_stack = []
+        has_clip = False
+        for instruction in instructions:
+            operands, raw_operator = instruction
+            operator = str(raw_operator)
+            if operator == "q":
+                matrix_stack.append(current_matrix)
+            elif operator == "Q":
+                current_matrix = (
+                    matrix_stack.pop() if matrix_stack
+                    else (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+                )
+            elif operator == "cm" and len(operands) == 6:
+                matrix = tuple(float(value) for value in operands)
+                current_matrix = _matrix_multiply(current_matrix, matrix)
+
+            if operator in path_operators:
+                buffered.append(instruction)
+                points.extend(
+                    _transform_xy(current_matrix, x, y)
+                    for x, y in _path_points(operator, operands)
+                )
+                continue
+            if buffered:
+                buffered.append(instruction)
+                if operator in {"W", "W*"}:
+                    has_clip = True
+                    continue
+                if operator not in paint_operators | {"n"}:
+                    continue
+                outside = False
+                if points:
+                    xs, ys = zip(*points)
+                    bounds = (min(xs), min(ys), max(xs), max(ys))
+                    outside = _fully_outside(bounds, trim)
+                if has_clip or not outside or operator == "n":
+                    output.extend(buffered)
+                buffered = []
+                points = []
+                has_clip = False
+                continue
+            output.append(instruction)
+        output.extend(buffered)
+        page.obj.Contents = pdf.make_stream(
+            pikepdf.unparse_content_stream(output)
+        )
 
 
 def apply_geometry(
@@ -395,18 +522,19 @@ def apply_geometry(
         with pikepdf.Pdf.open(source) as pdf:
             for index in indexes:
                 page = pdf.pages[index]
+                normalize_page_rotation(pdf, page, settings.rotation_degrees)
                 if settings.format is not None:
                     _resize_format(pdf, page, settings.format)
                 if settings.media is not None or settings.trim is not None:
                     _set_boxes(pdf, page, settings.media, settings.trim)
+            if settings.remove_outside_trim:
+                _remove_objects_outside_trim(pdf, indexes)
             # Alterar conteúdo ou caixas invalida a conformidade formal,
             # embora OutputIntents e o perfil ICC continuem incorporados.
             for key in ("/GTS_PDFXVersion", "/GTS_PDFXConformance"):
                 if key in pdf.docinfo:
                     del pdf.docinfo[key]
             pdf.save(temporary)
-        if settings.remove_outside_trim:
-            _remove_objects_outside_trim(temporary, indexes)
         if settings.crop_marks.enabled:
             marked = temporary.with_name(f".{output.stem}_marks.tmp.pdf")
             with pikepdf.Pdf.open(temporary) as pdf:

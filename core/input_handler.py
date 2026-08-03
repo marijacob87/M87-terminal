@@ -176,11 +176,11 @@ def handle_input_text(app, text):
         return
 
     # =========================
-    # //texto = busca no Finder dentro de /Volumes/Trabalhos
-    # Ex: //artexdocliente
+    # /#texto = busca no Finder dentro de /Volumes/Trabalhos
+    # Ex: /#artexdocliente
     # =========================
 
-    if text.startswith("//"):
+    if text.startswith("/#"):
         query = text[2:].strip()
 
         app.input.clear()
@@ -189,7 +189,7 @@ def handle_input_text(app, text):
         if not query:
             show_temporary_placeholder(
                 app.input,
-                "digite o nome do trabalho"
+                "digite a palavra da busca"
             )
             return
 
@@ -203,6 +203,28 @@ def handle_input_text(app, text):
             app.session_result_label.show()
             QTimer.singleShot(0, app.ajustar_altura_ao_conteudo)
             QTimer.singleShot(7000, app.clear_session_result)
+
+        return
+
+    # =========================
+    # //texto = abre uma pasta dentro da pasta de um cliente
+    # Ex: //Santa Catarina
+    # =========================
+
+    if text.startswith("//"):
+        query = text[2:].strip()
+
+        app.input.clear()
+        app.clear_suggestions()
+
+        if not query:
+            show_temporary_placeholder(
+                app.input,
+                "digite o nome da pasta"
+            )
+            return
+
+        app.start_client_subfolder_search(query)
 
         return
 

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -205,17 +206,15 @@ class PdfContextMixin:
         QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
 
     def handle_pdf_drop(self, path):
-        from core.pdf_info import analisar_pdf, resumo_pdf
+        from core.pdf_info import analisar_pdf
 
         self.current_pdf = path
         self.current_pdf_info = None
+        text = os.path.basename(path)
 
         try:
             self.current_pdf_info = analisar_pdf(path)
-            text = resumo_pdf(self.current_pdf_info)
         except Exception as error:
-            file_name = os.path.basename(path)
-            text = f"{file_name}\nNão consegui ler as informações."
             print(f"ERRO AO LER PDF: {error}")
 
         self.active_file_label.setText(text)
@@ -293,16 +292,20 @@ class PdfContextMixin:
         QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
 
     def open_imposition_with_pdf(self):
-        """Abre o IMP com o PDF ativo já carregado."""
+        """Abre a janela compartilhada na aba IMP com o PDF ativo."""
         if not self.current_pdf:
             return
 
+        opened = False
         try:
-            from ui.imposition_dialog import ImpositionDialog
+            from ui.tools_dialog import ToolsDialog
 
-            dialog = ImpositionDialog(self)
-            dialog.load_pdf(self.current_pdf)
-            dialog.exec()
+            dialog = getattr(self, "tools_dialog", None)
+            if dialog is None:
+                dialog = ToolsDialog(self, initial_tab="IMP")
+                self.tools_dialog = dialog
+            dialog.open_pdfs([self.current_pdf], tab="IMP")
+            opened = True
         except Exception as error:
             print(f"ERRO AO ABRIR IMP COM PDF: {error}")
             self.session_result_label.setText(
@@ -313,7 +316,8 @@ class PdfContextMixin:
             QTimer.singleShot(6000, self.clear_session_result)
         finally:
             self.suggestions.set_items(PDF_ACTIONS)
-            self.input.setFocus()
+            if not opened:
+                self.input.setFocus()
             QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
 
     def open_pdf_info(self):
@@ -338,6 +342,8 @@ class PdfContextMixin:
 
         dialog = RenamePdfDialog(
             file_name=os.path.basename(self.current_pdf),
+            file_path=self.current_pdf,
+            page_count=int((self.current_pdf_info or {}).get("paginas", 1)),
             parent=self,
         )
 
@@ -348,21 +354,31 @@ class PdfContextMixin:
         units, per_sheet, paper = dialog.values()
 
         try:
-            from core.pdf_info import analisar_pdf, resumo_pdf
+            from core.pdf_info import analisar_pdf
             from core.pdf_rename import renomear_pdf
 
-            new_path = renomear_pdf(
-                arquivo=self.current_pdf,
-                unidades=units,
-                por_plano=per_sheet,
-                papel=paper,
-            )
+            if dialog.is_already_named():
+                new_path = Path(self.current_pdf)
+            else:
+                new_path = renomear_pdf(
+                    arquivo=self.current_pdf,
+                    unidades=units,
+                    por_plano=per_sheet,
+                    papel=paper,
+                )
 
             self.current_pdf = str(new_path)
             self.current_pdf_info = analisar_pdf(self.current_pdf)
-            self.active_file_label.setText(
-                resumo_pdf(self.current_pdf_info)
-            )
+            self.active_file_label.setText(os.path.basename(self.current_pdf))
+            entries = dialog.print_log_entries()
+            if entries:
+                from core.print_log import clean_record_name
+                from ui.print_log_dialog import submit_print_log
+
+                dialog.print_log_editor.set_single_name(
+                    clean_record_name(new_path.name)
+                )
+                submit_print_log(self, dialog.print_log_editor)
         except Exception as error:
             print(f"ERRO AO RENOMEAR PDF: {error}")
 

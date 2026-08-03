@@ -19,6 +19,10 @@ from PySide6.QtWidgets import (
 )
 
 from core.montagem_calculator import obter_opcoes
+from ui.tool_design import (
+    TOOL_CONTROLS_WIDTH, TOOL_STANDARD_QSS,
+    configure_measure_swap, set_tool_role,
+)
 from ui.widgets import DarkMetallicTitleBar
 
 
@@ -27,33 +31,33 @@ YELLOW = "#FFC400"
 
 
 DIALOG_STYLE = f"""
-QWidget {{ font-family: "JetBrains Mono"; font-size: 10px; color: {YELLOW}; }}
-QWidget#monBox {{ background: rgba(0,0,0,232); border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
+QWidget {{ font-family: "JetBrains Mono"; font-size: 10px; }}
+QWidget#monBox, QWidget#monContent, QWidget#monControls {{ background: #080a0d; }}
+QWidget#monBox {{ border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
 QWidget#monBox[embedded="true"] {{ border-radius: 0; }}
 QLabel#monWindowTitle {{ color: white; font-size: 10px; letter-spacing: 1px; }}
 QLabel#monClose {{ color: white; font-size: 16px; padding: 0 4px; }}
 QLabel#monClose:hover {{ color: {YELLOW}; }}
-QLabel {{ color: rgba(255,255,255,.82); }}
-QLabel#sectionTitle {{ color: rgba(255,196,0,.75); font-size: 9px; font-weight: 600; letter-spacing: 1px; padding-top: 6px; border-bottom: 1px solid rgba(255,196,0,.16); }}
-QLabel#fieldLabel {{ color: rgba(255,255,255,.56); font-size: 9px; }}
-QLabel#resultTitle {{ color: rgba(255,196,0,.82); font-size: 9px; font-weight: 600; letter-spacing: 1px; }}
-QLabel#resultMain {{ color: white; font-size: 22px; font-weight: 800; }}
-QLabel#resultMeta {{ color: rgba(255,255,255,.68); font-size: 10px; }}
-QLabel#warning {{ color: #ffd6d6; background: rgba(180,35,35,.34); border: 1px solid rgba(255,85,85,.80); border-radius: 7px; padding: 8px; font-size: 10px; font-weight: 700; }}
-QFrame#line {{ background: rgba(255,196,0,.16); max-height: 1px; min-height: 1px; }}
-QFrame#resultCard {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,196,0,.16); border-radius: 8px; }}
-QFrame#resultCard[selected="true"] {{ background: rgba(255,196,0,.08); border: 1px solid {YELLOW}; }}
-QDoubleSpinBox, QSpinBox {{ background: rgba(255,255,255,.07); color: white; border: 1px solid rgba(255,255,255,.14); border-radius: 5px; padding: 5px; min-height: 22px; }}
-QDoubleSpinBox:focus, QSpinBox:focus {{ border: 1px solid {YELLOW}; }}
-QCheckBox {{ color: rgba(255,255,255,.82); spacing: 7px; }}
-QCheckBox::indicator {{ width: 15px; height: 15px; border: 1px solid rgba(255,255,255,.28); border-radius: 3px; background: rgba(255,255,255,.06); }}
+QLabel {{ color: rgba(255,255,255,.66); }}
+QFrame#monCard, QFrame#resultCard {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; }}
+QLabel#monCardTitle, QLabel#sectionTitle {{ color: {YELLOW}; font-size: 9px; font-weight: 700; letter-spacing: .7px; }}
+QLabel#fieldLabel {{ color: rgba(255,255,255,.43); font-size: 8px; }}
+QLabel#resultTitle {{ color: rgba(255,196,0,.78); font-size: 9px; font-weight: 700; letter-spacing: .7px; }}
+QLabel#resultMain {{ color: rgba(255,255,255,.92); font-size: 16px; font-weight: 700; }}
+QLabel#resultMeta {{ color: rgba(255,255,255,.52); font-size: 9px; }}
+QLabel#warning {{ color: rgba(255,205,205,.76); background: rgba(145,35,35,.16); border: 1px solid rgba(255,85,85,.42); border-radius: 5px; padding: 5px 7px; font-size: 8px; }}
+QFrame#resultCard[selected="true"] {{ background: rgba(255,255,255,.065); border: 1px solid rgba(255,255,255,.12); }}
+QDoubleSpinBox, QSpinBox {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 3px 5px; min-height: 20px; }}
+QCheckBox {{ color: rgba(255,255,255,.78); spacing: 6px; }}
+QCheckBox::indicator {{ width: 13px; height: 13px; border: 1px solid rgba(255,255,255,.22); border-radius: 3px; background: rgba(255,255,255,.05); }}
 QCheckBox::indicator:checked {{ background: {YELLOW}; border-color: {YELLOW}; }}
-QPushButton {{ background: rgba(255,255,255,.055); border: 1px solid rgba(255,196,0,.25); border-radius: 6px; padding: 7px; color: rgba(255,196,0,.82); }}
+QPushButton {{ min-height: 20px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 3px 10px; color: rgba(255,255,255,.66); }}
 QPushButton:hover {{ color: #fff0a0; border-color: rgba(255,196,0,.55); }}
 QPushButton:pressed {{ background: rgba(255,196,0,.12); }}
-QPushButton#secondaryButton {{ background: transparent; color: rgba(255,196,0,.82); border: 1px solid rgba(255,196,0,.25); }}
-QWidget#monPreview {{ border: 1px solid rgba(255,196,0,.18); border-radius: 8px; background: #080a0d; }}
-"""
+QPushButton#primaryButton {{ color: {YELLOW}; font-weight: 700; border: 1px solid rgba(255,196,0,.35); background: rgba(255,196,0,.08); }}
+QPushButton#secondaryButton {{ color: rgba(255,255,255,.66); border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }}
+QWidget#monPreview {{ border: 1px solid rgba(255,196,0,.18); border-radius: 7px; background: #080a0d; }}
+""" + TOOL_STANDARD_QSS
 
 
 class MontagemPreview(QWidget):
@@ -139,12 +143,13 @@ class ResultCard(QFrame):
         super().__init__(parent)
         self.index = index
         self.setObjectName("resultCard")
+        set_tool_role(self, "card")
         self.setProperty("selected", False)
         self.setCursor(Qt.PointingHandCursor)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(4)
+        layout.setContentsMargins(11, 8, 11, 9)
+        layout.setSpacing(7)
 
         self.title = QLabel(title)
         self.title.setObjectName("resultTitle")
@@ -235,17 +240,32 @@ class MontagemDialog(QDialog):
         layout = QVBoxLayout(box)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
-        text = QLabel(label)
+        text = QLabel(label.upper())
         text.setObjectName("fieldLabel")
+        set_tool_role(text, "fieldLabel")
         layout.addWidget(text)
         layout.addWidget(widget)
         return box
+
+    def _card(self, title):
+        card = QFrame()
+        card.setObjectName("monCard")
+        set_tool_role(card, "card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(11, 8, 11, 9)
+        layout.setSpacing(7)
+        label = QLabel(title)
+        label.setObjectName("monCardTitle")
+        set_tool_role(label, "cardTitle")
+        layout.addWidget(label)
+        return card, layout
 
     def build_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.box = QWidget()
         self.box.setObjectName("monBox")
+        self.box.setProperty("toolSurface", True)
         outer.addWidget(self.box)
 
         main = QVBoxLayout(self.box)
@@ -269,8 +289,8 @@ class MontagemDialog(QDialog):
         bar.mouseMoveEvent = self._title_move
 
         content = QHBoxLayout()
-        content.setContentsMargins(18, 10, 18, 2)
-        content.setSpacing(18)
+        content.setContentsMargins(14, 12, 14, 4)
+        content.setSpacing(12)
         content.addWidget(self.build_inputs(), 0)
         content.addWidget(self.build_results(), 1)
         main.addLayout(content, 1)
@@ -281,41 +301,36 @@ class MontagemDialog(QDialog):
 
     def build_inputs(self):
         wrapper = QWidget()
-        wrapper.setFixedWidth(300)
+        wrapper.setObjectName("monControls")
+        set_tool_role(wrapper, "controls")
+        wrapper.setFixedWidth(TOOL_CONTROLS_WIDTH)
         layout = QVBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(9)
+        layout.setSpacing(7)
 
-        title = QLabel("PAPEL")
-        title.setObjectName("sectionTitle")
-        layout.addWidget(title)
-
+        paper_card, paper_layout = self._card("PAPEL")
         self.papel_l = self._double_field(480)
         self.papel_a = self._double_field(330)
         row = QHBoxLayout()
         row.addWidget(self._labeled("Largura (mm)", self.papel_l))
+        self.inverter_papel = configure_measure_swap(QPushButton())
+        row.addWidget(self.inverter_papel, 0, Qt.AlignBottom)
         row.addWidget(self._labeled("Altura (mm)", self.papel_a))
-        layout.addLayout(row)
+        paper_layout.addLayout(row)
+        layout.addWidget(paper_card)
 
-        self.inverter_papel = QCheckBox("Inverter medidas do papel")
-        layout.addWidget(self.inverter_papel)
-        layout.addWidget(self._separator())
-
-        title = QLabel("PEÇA")
-        title.setObjectName("sectionTitle")
-        layout.addWidget(title)
-
+        piece_card, piece_layout = self._card("PEÇA")
         self.peca_l = self._double_field(85)
         self.peca_a = self._double_field(55)
         row = QHBoxLayout()
         row.addWidget(self._labeled("Largura (mm)", self.peca_l))
+        self.inverter_peca = configure_measure_swap(QPushButton())
+        row.addWidget(self.inverter_peca, 0, Qt.AlignBottom)
         row.addWidget(self._labeled("Altura (mm)", self.peca_a))
-        layout.addLayout(row)
+        piece_layout.addLayout(row)
+        layout.addWidget(piece_card)
 
-        self.inverter_peca = QCheckBox("Inverter medidas da peça")
-        layout.addWidget(self.inverter_peca)
-        layout.addWidget(self._separator())
-
+        production_card, production_layout = self._card("PRODUÇÃO")
         self.quantidade = QSpinBox()
         self.quantidade.setRange(0, 100000000)
         self.quantidade.setSpecialValueText("Opcional")
@@ -330,21 +345,22 @@ class MontagemDialog(QDialog):
         grid.addWidget(self._labeled("Quantidade", self.quantidade), 0, 0, 1, 2)
         grid.addWidget(self._labeled("Espaço (mm)", self.espaco), 1, 0)
         grid.addWidget(self._labeled("Margem (mm)", self.margem), 1, 1)
-        layout.addLayout(grid)
+        production_layout.addLayout(grid)
 
         self.pinca = QCheckBox("Acrescentar 15 mm de pinça")
-        layout.addWidget(self.pinca)
+        production_layout.addWidget(self.pinca)
 
         hint = QLabel("Pinça sempre na parte inferior da folha horizontal.")
         hint.setObjectName("fieldLabel")
         hint.setWordWrap(True)
-        layout.addWidget(hint)
+        production_layout.addWidget(hint)
 
         self.warning = QLabel("")
         self.warning.setObjectName("warning")
         self.warning.setWordWrap(True)
         self.warning.hide()
-        layout.addWidget(self.warning)
+        production_layout.addWidget(self.warning)
+        layout.addWidget(production_card)
         layout.addStretch()
         return wrapper
 
@@ -352,10 +368,10 @@ class MontagemDialog(QDialog):
         wrapper = QWidget()
         layout = QVBoxLayout(wrapper)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(7)
 
         cards = QHBoxLayout()
-        cards.setSpacing(12)
+        cards.setSpacing(7)
         self.best_card = ResultCard(0, "MELHOR MONTAGEM")
         self.second_card = ResultCard(1, "2ª OPÇÃO")
         self.best_card.clicked.connect(self.select_result)
@@ -364,23 +380,20 @@ class MontagemDialog(QDialog):
         cards.addWidget(self.second_card)
         layout.addLayout(cards)
 
-        preview_title = QLabel("PRÉVIA DA MONTAGEM")
-        preview_title.setObjectName("sectionTitle")
-        layout.addWidget(preview_title)
-
         self.preview = MontagemPreview()
         layout.addWidget(self.preview, 1)
         return wrapper
 
     def build_buttons(self):
         layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(14, 0, 14, 0)
 
         clear_button = QPushButton("LIMPAR")
         clear_button.setObjectName("secondaryButton")
         clear_button.clicked.connect(self.clear_fields)
 
         close_button = QPushButton("OK")
+        close_button.setObjectName("primaryButton")
         close_button.setFixedWidth(62)
         close_button.clicked.connect(self.accept)
 
@@ -403,8 +416,23 @@ class MontagemDialog(QDialog):
         for field in fields:
             field.valueChanged.connect(self.recalculate)
 
-        for checkbox in [self.inverter_papel, self.inverter_peca, self.pinca]:
-            checkbox.toggled.connect(self.recalculate)
+        self.inverter_papel.clicked.connect(
+            lambda: self._swap_measure_fields(self.papel_l, self.papel_a)
+        )
+        self.inverter_peca.clicked.connect(
+            lambda: self._swap_measure_fields(self.peca_l, self.peca_a)
+        )
+        self.pinca.toggled.connect(self.recalculate)
+
+    def _swap_measure_fields(self, width, height):
+        width_value, height_value = width.value(), height.value()
+        width.blockSignals(True)
+        height.blockSignals(True)
+        width.setValue(height_value)
+        height.setValue(width_value)
+        width.blockSignals(False)
+        height.blockSignals(False)
+        self.recalculate()
 
     def current_values(self):
         papel_l = self.papel_l.value()
@@ -412,12 +440,8 @@ class MontagemDialog(QDialog):
         peca_l = self.peca_l.value()
         peca_a = self.peca_a.value()
 
-        if self.inverter_papel.isChecked():
-            papel_l, papel_a = papel_a, papel_l
         if self.pinca.isChecked():
             papel_l, papel_a = max(papel_l, papel_a), min(papel_l, papel_a)
-        if self.inverter_peca.isChecked():
-            peca_l, peca_a = peca_a, peca_l
 
         quantidade = self.quantidade.value() or None
         return papel_l, papel_a, peca_l, peca_a, quantidade
@@ -469,8 +493,6 @@ class MontagemDialog(QDialog):
         self.espaco.setValue(5)
         self.margem.setValue(5)
         self.pinca.setChecked(False)
-        self.inverter_papel.setChecked(False)
-        self.inverter_peca.setChecked(False)
         self.papel_l.setFocus()
 
     def showEvent(self, event):

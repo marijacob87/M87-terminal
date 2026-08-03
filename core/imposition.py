@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import os
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -241,12 +240,15 @@ def calculate_layouts(
     trim_height_mm: float,
     gutter_mm: float,
     margin_mm: float,
+    bottom_margin_extra_mm: float = 0.0,
 ) -> list[LayoutOption]:
     if min(paper_width_mm, paper_height_mm, trim_width_mm, trim_height_mm) <= 0:
         return []
 
     usable_w = max(0.0, paper_width_mm - 2.0 * margin_mm)
-    usable_h = max(0.0, paper_height_mm - 2.0 * margin_mm)
+    usable_h = max(
+        0.0, paper_height_mm - 2.0 * margin_mm - bottom_margin_extra_mm
+    )
     options: list[LayoutOption] = []
 
     for rotated, item_w, item_h in (
@@ -302,6 +304,7 @@ def build_custom_layout(
     columns: int,
     rows: int,
     rotated: bool,
+    bottom_margin_extra_mm: float = 0.0,
 ) -> LayoutOption | None:
     """Cria uma grade manual centralizada e retorna None quando ela não cabe."""
     if min(paper_width_mm, paper_height_mm, trim_width_mm, trim_height_mm) <= 0:
@@ -311,7 +314,9 @@ def build_custom_layout(
 
     item_w, item_h = (trim_height_mm, trim_width_mm) if rotated else (trim_width_mm, trim_height_mm)
     usable_w = max(0.0, paper_width_mm - 2.0 * margin_mm)
-    usable_h = max(0.0, paper_height_mm - 2.0 * margin_mm)
+    usable_h = max(
+        0.0, paper_height_mm - 2.0 * margin_mm - bottom_margin_extra_mm
+    )
     occupied_w = columns * item_w + max(0, columns - 1) * gutter_mm
     occupied_h = rows * item_h + max(0, rows - 1) * gutter_mm
     if occupied_w > usable_w + 1e-6 or occupied_h > usable_h + 1e-6:
@@ -396,8 +401,8 @@ def _draw_outer_crop_marks(
     layout: LayoutOption,
     gutter_mm: float,
     length_mm: float = 5.0,
-    distance_mm: float = 5.0,
-    thickness_mm: float = 0.08,
+    distance_mm: float = 3.0,
+    thickness_pt: float = 0.25,
 ) -> None:
     """Desenha marcas de corte somente no perímetro externo da grade imposta.
 
@@ -406,7 +411,7 @@ def _draw_outer_crop_marks(
     """
     length = length_mm * MM_TO_PT
     distance = distance_mm * MM_TO_PT
-    width = max(0.1, thickness_mm * MM_TO_PT)
+    width = max(0.1, thickness_pt)
     black = (0.0, 0.0, 0.0)
 
     left = layout.start_x_mm * MM_TO_PT
@@ -460,12 +465,22 @@ def _safe_filename_part(value: str, fallback: str) -> str:
     return clean.strip(" .-") or fallback
 
 
-def automatic_filename(source_path: str | os.PathLike[str], quantity: int, plans: int,
-                       material: str) -> str:
+def automatic_filename(
+    source_path: str | os.PathLike[str],
+    quantity: int,
+    plans: int,
+    material: str,
+    each_artwork: bool = False,
+) -> str:
     stem = _safe_filename_part(Path(source_path).stem, "Arquivo")
     clean_material = _safe_filename_part(material, "Material")
     date_text = datetime.now().strftime("%d%m%Y")
-    return f"{quantity}un {plans}pl_{clean_material}_{stem}_{date_text}.pdf"
+    production_text = (
+        f"{quantity}un cada_{plans}pl"
+        if each_artwork
+        else f"{quantity}un {plans}pl"
+    )
+    return f"{production_text}_{clean_material}_{stem}_{date_text}.pdf"
 
 
 def automatic_sheet_label(
@@ -473,30 +488,27 @@ def automatic_sheet_label(
     quantity: int,
     plans: int,
     material: str,
+    each_artwork: bool = False,
 ) -> str:
     """Texto padrão usado para identificar cada folha imposta."""
     stem = _safe_filename_part(Path(source_path).stem, "Arquivo")
     clean_material = _safe_filename_part(material, "Material")
     date_text = datetime.now().strftime("%d/%m/%Y")
-    return f"{quantity}un • {plans} Planos • {clean_material} • {stem} • {date_text}"
+    quantity_text = f"{quantity}un cada arte" if each_artwork else f"{quantity}un"
+    return f"{quantity_text} • {plans} Planos • {clean_material} • {stem} • {date_text}"
 
 
 def _draw_sheet_label(
     page: fitz.Page,
     layout: LayoutOption,
     text: str,
-    page_number: int,
-    total_pages: int,
 ) -> None:
     """Desenha uma única identificação no topo direito da folha imposta."""
     label = " ".join(str(text).split())
     if not label:
         return
-    if total_pages > 2:
-        label = f"{label} • {page_number}/{total_pages}"
-
     font_name = "helv"
-    font_size = 7.0
+    font_size = 10.0
     right_x = (layout.paper_width_mm - 50.0) * MM_TO_PT
     text_width = fitz.get_text_length(label, fontname=font_name, fontsize=font_size)
     left_x = max(3.0 * MM_TO_PT, right_x - text_width)
@@ -529,6 +541,9 @@ def export_imposition(
     fill_order: str = "rows",
     identify_sheets: bool = True,
     sheet_label: str = "",
+    crop_mark_offset_mm: float = 3.0,
+    crop_mark_length_mm: float = 5.0,
+    crop_mark_thickness_pt: float = 0.25,
 ) -> ExportSummary:
     src_path = Path(source_path).expanduser().resolve()
     out_path = Path(output_path).expanduser().resolve()
@@ -574,7 +589,7 @@ def export_imposition(
             except Exception:
                 pass
 
-        for output_index, group in enumerate(page_groups, start=1):
+        for group in page_groups:
             out_page = output.new_page(width=paper_w_pt, height=paper_h_pt)
             for slot_index, source_index in enumerate(group):
                 if fill_order == "columns":
@@ -598,12 +613,17 @@ def export_imposition(
                 )
 
             if crop_marks:
-                _draw_outer_crop_marks(out_page, layout, gutter_mm)
+                _draw_outer_crop_marks(
+                    out_page,
+                    layout,
+                    gutter_mm,
+                    length_mm=crop_mark_length_mm,
+                    distance_mm=crop_mark_offset_mm,
+                    thickness_pt=crop_mark_thickness_pt,
+                )
 
             if identify_sheets and sheet_label.strip():
-                _draw_sheet_label(
-                    out_page, layout, sheet_label, output_index, len(page_groups)
-                )
+                _draw_sheet_label(out_page, layout, sheet_label)
 
             # Páginas novas já nascem com MediaBox, CropBox, TrimBox e
             # BleedBox coincidentes com o tamanho completo da folha.
@@ -642,11 +662,3 @@ def export_imposition(
         output_intent_preserved=preservation.output_intent_preserved,
         source_pdfx=preservation.source_pdfx,
     )
-
-
-def open_in_acrobat(path: str | os.PathLike[str]) -> None:
-    pdf_path = str(Path(path).expanduser().resolve())
-    try:
-        subprocess.Popen(["open", "-a", "Adobe Acrobat", pdf_path])
-    except Exception:
-        subprocess.Popen(["open", pdf_path])

@@ -22,6 +22,13 @@
   },
   {
     "section": "Sistema",
+    "code": "REL",
+    "label": "Reload Último App",
+    "type": "internal",
+    "value": "restart_last_app"
+  },
+  {
+    "section": "Sistema",
     "code": "MU",
     "label": "Montar Unidades",
     "type": "internal",
@@ -50,6 +57,13 @@
   },
   {
     "section": "Abrir",
+    "code": "AM",
+    "label": "Abrir #Mariane",
+    "type": "folder",
+    "value": "/Volumes/Trabalhos/# MARIANE"
+  },
+  {
+    "section": "Abrir",
     "code": "RES",
     "label": "Pastas Recentes",
     "type": "internal",
@@ -61,13 +75,6 @@
     "label": "Abrir Downloads",
     "type": "folder",
     "value": "~/Downloads"
-  },
-  {
-    "section": "Abrir",
-    "code": "AM",
-    "label": "Abrir #Mariane",
-    "type": "folder",
-    "value": "/Volumes/Trabalhos/# MARIANE"
   },
   {
     "section": "Abrir",
@@ -92,13 +99,6 @@
   },
   {
     "section": "Ferramentas",
-    "code": "CC",
-    "label": "Conferir CheckList",
-    "type": "internal",
-    "value": "checklist"
-  },
-  {
-    "section": "Ferramentas",
     "code": "GEO",
     "label": "Geometria",
     "type": "internal",
@@ -113,6 +113,13 @@
   },
   {
     "section": "Ferramentas",
+    "code": "ORG",
+    "label": "Organizar Páginas",
+    "type": "internal",
+    "value": "organize_pages"
+  },
+  {
+    "section": "Ferramentas",
     "code": "MON",
     "label": "Calcular Montagem",
     "type": "internal",
@@ -124,6 +131,13 @@
     "label": "Gerador de Códigos",
     "type": "internal",
     "value": "code_generator"
+  },
+  {
+    "section": "Ferramentas",
+    "code": "CC",
+    "label": "Conferir CheckList",
+    "type": "internal",
+    "value": "checklist"
   },
   {
     "section": "Ferramentas",

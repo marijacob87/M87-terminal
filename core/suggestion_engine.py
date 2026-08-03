@@ -52,8 +52,8 @@ def get_suggestions(query, commands):
         app_query = query[1:].strip()
         return search_running_applications(app_query)
 
-    # //nome = busca no Finder dentro da pasta Trabalhos
-    if query.startswith("//"):
+    # /#nome = busca no Finder; //nome = pasta dentro de cliente
+    if query.startswith("/#") or query.startswith("//"):
         return []
 
     # /nome = cliente

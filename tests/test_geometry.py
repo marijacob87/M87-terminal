@@ -74,6 +74,38 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(info.pages[1].media.width_mm, 106, places=2)
         self.assertEqual(title, "Geometria M87")
 
+    def test_rotates_only_selected_page_before_other_geometry_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf")
+            rotated = root / "rotated.pdf"
+            resized = root / "resized.pdf"
+            apply_geometry(
+                source,
+                rotated,
+                GeometrySettings(rotation_degrees=90),
+                [0],
+            )
+            rotated_info = inspect_geometry(rotated)
+            apply_geometry(
+                rotated,
+                resized,
+                GeometrySettings(format=FormatSettings(120, 220)),
+                [0],
+            )
+            resized_info = inspect_geometry(resized)
+            document = fitz.open(rotated)
+            text = document[0].get_text()
+            document.close()
+
+        self.assertAlmostEqual(rotated_info.pages[0].media.width_mm, 56, places=2)
+        self.assertAlmostEqual(rotated_info.pages[0].media.height_mm, 106, places=2)
+        self.assertAlmostEqual(rotated_info.pages[1].media.width_mm, 106, places=2)
+        self.assertAlmostEqual(rotated_info.pages[1].media.height_mm, 56, places=2)
+        self.assertAlmostEqual(resized_info.pages[0].media.width_mm, 120, places=2)
+        self.assertAlmostEqual(resized_info.pages[0].media.height_mm, 220, places=2)
+        self.assertIn("Página 1", text)
+
     def test_box_edit_does_not_transform_content_stream(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -144,11 +176,12 @@ class GeometryTests(unittest.TestCase):
                     [0],
                 )
 
-    def test_crop_marks_can_expand_media_without_overwriting_source(self):
+    def test_crop_marks_use_trim_without_changing_page_boxes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = create_pdf(root / "source.pdf", pages=1)
             original = source.read_bytes()
+            before = inspect_geometry(source)
             output = root / "output.pdf"
             apply_geometry(
                 source,
@@ -158,14 +191,17 @@ class GeometryTests(unittest.TestCase):
                     offset_mm=3,
                     length_mm=5,
                     thickness_pt=0.25,
-                    auto_expand_media=True,
                 )),
                 [0],
             )
             info = inspect_geometry(output)
             self.assertEqual(source.read_bytes(), original)
-            self.assertGreater(info.pages[0].media.width_mm, 106)
-            self.assertGreater(info.pages[0].media.height_mm, 56)
+            self.assertEqual(info.pages[0].media, before.pages[0].media)
+            self.assertEqual(info.pages[0].trim, before.pages[0].trim)
+            result = fitz.open(output)
+            drawings = result[0].get_drawings()
+            result.close()
+            self.assertGreaterEqual(len(drawings), 9)
 
     def test_cleanup_removes_only_content_whose_bounds_are_outside_trim(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -174,12 +210,25 @@ class GeometryTests(unittest.TestCase):
             document = fitz.open()
             page = document.new_page(width=mm(106), height=mm(56))
             page.set_trimbox(fitz.Rect(mm(10), mm(10), mm(96), mm(46)))
-            page.insert_text(fitz.Point(mm(1), mm(5)), "FORA")
             page.insert_text(fitz.Point(mm(20), mm(25)), "DENTRO")
+            page.draw_line(
+                fitz.Point(mm(20), mm(5)), fitz.Point(mm(30), mm(5))
+            )
+            page.draw_line(
+                fitz.Point(mm(20), mm(51)), fitz.Point(mm(30), mm(51))
+            )
+            page.draw_rect(
+                fitz.Rect(mm(20), mm(20), mm(30), mm(30))
+            )
             document.save(source)
             document.close()
             output = root / "output.pdf"
 
+            before_info = inspect_geometry(source)
+            before = fitz.open(source)
+            before_text = fitz.Rect(before[0].get_text("blocks")[0][:4])
+            self.assertEqual(len(before[0].get_drawings()), 3)
+            before.close()
             apply_geometry(
                 source,
                 output,
@@ -188,10 +237,16 @@ class GeometryTests(unittest.TestCase):
             )
             result = fitz.open(output)
             text = result[0].get_text()
+            after_text = fitz.Rect(result[0].get_text("blocks")[0][:4])
+            drawings = result[0].get_drawings()
             result.close()
+            after_info = inspect_geometry(output)
 
-        self.assertNotIn("FORA", text)
         self.assertIn("DENTRO", text)
+        self.assertEqual(len(drawings), 1)
+        self.assertEqual(before_text, after_text)
+        self.assertEqual(before_info.pages[0].media, after_info.pages[0].media)
+        self.assertEqual(before_info.pages[0].trim, after_info.pages[0].trim)
 
     def test_preserves_icc_but_removes_unvalidated_pdfx_declaration(self):
         with tempfile.TemporaryDirectory() as directory:

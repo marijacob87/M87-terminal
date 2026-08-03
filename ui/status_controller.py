@@ -3,7 +3,7 @@ import psutil
 from PySide6.QtCore import QCoreApplication, QTimer
 
 from core.app_tracker import get_frontmost_app, is_valid_app
-from core.config import BREAKPOINT_WIDTH, STATUS_UPDATE_MS, WEATHER_UPDATE_MS
+from core.config import APP_VERSION, STATUS_UPDATE_MS, WEATHER_UPDATE_MS
 from core.status_worker import StatusWorker
 
 
@@ -75,7 +75,6 @@ class StatusControllerMixin:
         data = self.status_data.get("data", "--/--/----")
         hora = self.status_data.get("hora", "--:--")
         temp = self.status_data.get("temp", "--°C")
-        battery = self.status_data.get("battery", "--%")
         ram = self.status_data.get("ram", "--%")
         cpu = self.status_data.get("cpu", "--%")
         networks = self.status_data.get("networks", {})
@@ -96,26 +95,13 @@ class StatusControllerMixin:
         self.status_network.setToolTip(network_tooltip)
         self.status_primary.setToolTip(network_tooltip)
 
-        if self.width() < BREAKPOINT_WIDTH:
-            self.status_primary.setText(f"{data}   {hora}   {temp}")
-            self.status_secondary.setText(
-                f"BAT {battery}   RAM {ram}   CPU {cpu}"
-            )
-            self.status_secondary.show()
-            self.status_network.setText(network_html)
-            self.status_network.show()
-        else:
-            self.status_primary.setText(
-                f"<span>{data}&nbsp;&nbsp;&nbsp;{hora}&nbsp;&nbsp;&nbsp;"
-                f"{temp}&nbsp;&nbsp;&nbsp;BAT {battery}&nbsp;&nbsp;&nbsp;"
-                f"RAM {ram}&nbsp;&nbsp;&nbsp;CPU {cpu}&nbsp;&nbsp;&nbsp;"
-                f"{network_text}</span>"
-            )
-            self.status_primary.setToolTip(network_tooltip)
-            self.status_secondary.clear()
-            self.status_secondary.hide()
-            self.status_network.clear()
-            self.status_network.hide()
+        self.status_primary.setText(
+            f"V{APP_VERSION}   RAM {ram}   CPU {cpu}"
+        )
+        self.status_secondary.setText(f"{data}   {hora}   {temp}")
+        self.status_secondary.show()
+        self.status_network.setText(network_html)
+        self.status_network.show()
 
     def mount_network_from_status(self, link):
         prefix = "mount:"

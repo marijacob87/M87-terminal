@@ -4,7 +4,7 @@ from pathlib import Path
 
 from AppKit import NSApplication, NSImage
 from PySide6.QtCore import QCoreApplication, QLibraryInfo
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from core.config import FONT_FAMILY
@@ -24,15 +24,17 @@ def configure_qt_plugins():
         )
 
 
-def configure_app_icon():
+def configure_app_icon(app):
     project_root = Path(__file__).resolve().parent
-    icon_path = project_root / "assets" / "m87_icon.png"
+    png_path = project_root / "assets" / "m87_icon.png"
+    icon_path = project_root / "assets" / "m87_icon.icns"
 
-    if not icon_path.exists():
-        print(f"[ERRO] Ícone não encontrado: {icon_path}")
+    if not png_path.exists():
+        print(f"[ERRO] Ícone não encontrado: {png_path}")
         return
 
-    image = NSImage.alloc().initWithContentsOfFile_(str(icon_path))
+    app.setWindowIcon(QIcon(str(icon_path if icon_path.exists() else png_path)))
+    image = NSImage.alloc().initWithContentsOfFile_(str(png_path))
 
     if image is None:
         print(f"[ERRO] Não foi possível carregar o ícone: {icon_path}")
@@ -45,9 +47,11 @@ def main():
     configure_qt_plugins()
 
     app = QApplication(sys.argv)
+    app.setApplicationName("M87 Terminal")
+    app.setOrganizationName("M87Tools")
     app.setFont(QFont(FONT_FAMILY, 12))
 
-    configure_app_icon()
+    configure_app_icon(app)
 
     # Importado apenas depois que o Qt já iniciou corretamente.
     from ui.ui import M87Term

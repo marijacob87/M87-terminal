@@ -15,9 +15,9 @@ QWidget {
 
 #title {
     color: rgba(175, 175, 175, 0.99);
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     background: transparent;
 }
 
@@ -27,6 +27,7 @@ QWidget {
 
 #minimizeButton,
 #codeButton,
+#codexButton,
 #referenceButton,
 #reloadButton {
     color: rgba(175, 175, 175, 0.88);
@@ -34,12 +35,14 @@ QWidget {
     font-weight: 600;
 }
 
-#minimizeButton { font-size: 13px; padding: 0px 2px; }
-#codeButton { font-size: 9px; padding: 0px 2px; }
-#referenceButton { font-size: 12px; padding: 0px 2px; }
-#reloadButton { font-size: 13px; padding: 0px 2px; }
+#minimizeButton { font-size: 12px; padding: 0px 0px 2px 0px; }
+#codeButton { font-size: 9px; padding: 0px; }
+#codexButton { padding: 0px; }
+#referenceButton { font-size: 11px; padding: 0px 0px 1px 0px; }
+#reloadButton { font-size: 12px; padding: 0px 0px 1px 0px; }
 
 #codeButton:hover,
+#codexButton:hover,
 #referenceButton:hover,
 #reloadButton:hover,
 #minimizeButton:hover { color: #FFE066; }

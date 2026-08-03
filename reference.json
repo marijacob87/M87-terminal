@@ -3,7 +3,7 @@
     "name": "M87 TERMINAL",
     "version": "v2.0.0",
     "created": "03 de julho de 2026",
-    "updated": "29 de julho de 2026"
+    "updated": "31 de julho de 2026"
   },
   "sections": [
     {
@@ -100,6 +100,16 @@
               ]
             },
             {
+              "code": "REL",
+              "title": "Reload Último App",
+              "description": "Fecha e abre novamente o último aplicativo usado.",
+              "keywords": [
+                "reiniciar",
+                "reabrir",
+                "aplicativo"
+              ]
+            },
+            {
               "code": "MU",
               "title": "Montar Unidades",
               "description": "Monta e verifica as três unidades configuradas: MIM, PFI e NAS. Para montar somente uma, use MU MIM, MU PFI ou MU NAS. Os indicadores no status ficam verdes apenas quando o volume está montado e acessível; clique num indicador para tentar montar aquela unidade.",
@@ -148,6 +158,15 @@
           "title": "ABRIR",
           "items": [
             {
+              "code": "AM",
+              "title": "Abrir #Mariane",
+              "description": "Abre a pasta # MARIANE dentro de Trabalhos.",
+              "keywords": [
+                "mariane",
+                "trabalhos"
+              ]
+            },
+            {
               "code": "RES",
               "title": "Pastas Recentes",
               "description": "Mostra no Terminal as 10 pastas usadas mais recentemente. Use ↑ ↓ e Enter para abrir.",
@@ -166,15 +185,6 @@
               "keywords": [
                 "downloads",
                 "finder"
-              ]
-            },
-            {
-              "code": "AM",
-              "title": "Abrir #Mariane",
-              "description": "Abre a pasta # MARIANE dentro de Trabalhos.",
-              "keywords": [
-                "mariane",
-                "trabalhos"
               ]
             },
             {
@@ -225,7 +235,7 @@
             {
               "code": "GEO",
               "title": "Geometria do PDF",
-              "description": "Abre a aba GEO na janela compartilhada de ferramentas. Permite inspecionar páginas, alterar formato, MediaBox e TrimBox, escolher âncora, adicionar marcas de corte e remover somente objetos totalmente fora da TrimBox. Trabalha com pré-visualização, desfazer e Salvar Como, sem sobrescrever o PDF original.",
+              "description": "Abre a aba GEO na janela compartilhada de ferramentas, com TrimBox selecionada por padrão ao carregar cada PDF. Permite inspecionar páginas, alterar formato, MediaBox e TrimBox, escolher âncora e remover somente objetos totalmente fora da TrimBox. As marcas de corte pertencem à Imposição. Trabalha com pré-visualização, desfazer e Salvar Como, sem sobrescrever o PDF original.",
               "keywords": [
                 "geometria",
                 "pdf",
@@ -259,7 +269,7 @@
             {
               "code": "MON",
               "title": "Calcular Montagem",
-              "description": "Calcula montagens, aproveitamento, margens, sangria, pinça e rotação.",
+              "description": "Calcula montagens, aproveitamento, margens, sangria, pinça e rotação. Usa o mesmo padrão visual da Geometria, com cartões de entrada, campos compactos, sugestões de montagem e prévia.",
               "keywords": [
                 "montagem",
                 "papel",
@@ -269,7 +279,7 @@
             {
               "code": "IMP",
               "title": "Montar Imposição",
-              "description": "Abre o impositor PDF em modo único ou lote. Arraste um ou vários PDFs, aplique o mesmo papel, margens, espaçamento, marcas e material, defina quantidades individuais ou aplique uma quantidade a todos, confira cada montagem e salve os PDFs separadamente no Desktop.",
+              "description": "Abre o impositor PDF em modo único ou lote, com o mesmo padrão visual em cartões, zoom e navegação da Geometria e a mesma biblioteca compartilhada de formatos de papel. Permite reservar 10 mm adicionais de pinça na margem inferior, configurar offset, comprimento e espessura das marcas de corte, escolher materiais por chips compactos, consultar os planos abaixo da grade e conferir no resumo Trim, papel, sobra e folgas laterais antes de salvar os PDFs no Desktop.",
               "keywords": [
                 "imposição",
                 "impose",
@@ -284,6 +294,21 @@
                 "vários PDFs",
                 "quantidade individual",
                 "processar todos"
+              ]
+            },
+            {
+              "code": "ORG",
+              "title": "Organizar Páginas",
+              "description": "Abre a primeira aba da janela compartilhada de ferramentas. Reúne as opções em uma barra lateral no padrão visual do M87 e mostra as miniaturas na área principal. Permite selecionar por faixa, pares, ímpares, retrato ou paisagem; arrastar para reordenar; girar, duplicar, excluir, inserir, substituir e extrair páginas; dividir por quantidade; desfazer, refazer e salvar como sem sobrescrever o PDF original. Cada alteração atualiza automaticamente o PDF de trabalho usado por GEO e IMP.",
+              "keywords": [
+                "organizar páginas",
+                "pdf",
+                "reordenar",
+                "extrair",
+                "dividir",
+                "girar",
+                "substituir",
+                "salvar como"
               ]
             },
             {
@@ -317,9 +342,10 @@
         {
           "code": "/cliente",
           "title": "Abrir pasta de cliente",
-          "description": "Busca uma pasta de cliente em Trabalhos e abre o primeiro resultado. Exemplo: /rota",
+          "description": "Busca a pasta do cliente dentro da pasta correspondente à sua letra inicial e abre o primeiro resultado. Exemplo: /rota busca em Trabalhos/R.",
           "keywords": [
             "cliente",
+            "letra",
             "pasta",
             "busca rápida"
           ]
@@ -345,13 +371,26 @@
           ]
         },
         {
-          "code": "//trabalho",
-          "title": "Pesquisar em Trabalhos",
-          "description": "Abre uma busca do Finder dentro de /Volumes/Trabalhos. Exemplo: //convite.",
+          "code": "//pasta",
+          "title": "Abrir pasta dentro de um cliente",
+          "description": "Busca somente pastas diretamente dentro das pastas dos clientes. Exemplo: //Santa Catarina pode abrir Trabalhos/A/Angelo Moreira/Santa Catarina.",
+          "keywords": [
+            "cliente",
+            "subpasta",
+            "pasta",
+            "busca rápida"
+          ]
+        },
+        {
+          "code": "/#palavra",
+          "title": "Busca geral em Trabalhos",
+          "description": "Abre uma busca do Finder em toda a pasta /Volumes/Trabalhos. Para limitar por tipo de arquivo, informe a extensão separada por espaço. Exemplos: /#convite e /#deluxe .pdf.",
           "keywords": [
             "busca",
             "finder",
-            "arquivo"
+            "arquivo",
+            "extensão",
+            "trabalhos"
           ]
         },
         {
@@ -475,6 +514,104 @@
       "title": "ATALHOS",
       "items": [
         {
+          "code": "⌘Z",
+          "title": "Desfazer na ferramenta ativa",
+          "description": "Na janela compartilhada, desfaz a última organização de páginas em ORG, a última operação aplicada em GEO ou a edição do campo ativo nas demais abas. Arquivos já salvos em disco não são alterados.",
+          "keywords": [
+            "atalho",
+            "desfazer",
+            "undo",
+            "histórico",
+            "command z"
+          ]
+        },
+        {
+          "code": "⌘V",
+          "title": "Colar PDF copiado",
+          "description": "Na janela de ferramentas, carrega o PDF copiado pelo Finder no contexto compartilhado de ORG, GEO e IMP, independentemente da aba ativa.",
+          "keywords": [
+            "atalho",
+            "colar",
+            "clipboard",
+            "finder",
+            "pdf",
+            "command v"
+          ]
+        },
+        {
+          "code": "⌘F16",
+          "title": "Abrir Geometria",
+          "description": "Na janela de ferramentas, muda diretamente para a aba Geometria.",
+          "keywords": [
+            "atalho",
+            "ferramentas",
+            "aba",
+            "geometria",
+            "geo"
+          ]
+        },
+        {
+          "code": "⌘F17",
+          "title": "Abrir Imposição",
+          "description": "Na janela de ferramentas, muda diretamente para a aba Imposição.",
+          "keywords": [
+            "atalho",
+            "ferramentas",
+            "aba",
+            "imposição",
+            "imp"
+          ]
+        },
+        {
+          "code": "⌘F18",
+          "title": "Abrir Montagem",
+          "description": "Na janela de ferramentas, muda diretamente para a aba Montagem.",
+          "keywords": [
+            "atalho",
+            "ferramentas",
+            "aba",
+            "montagem",
+            "mon"
+          ]
+        },
+        {
+          "code": "⌘F19",
+          "title": "Abrir EAN-13",
+          "description": "Na janela de ferramentas, muda diretamente para a aba EAN-13.",
+          "keywords": [
+            "atalho",
+            "ferramentas",
+            "aba",
+            "ean-13",
+            "código de barras",
+            "bar"
+          ]
+        },
+        {
+          "code": "⌘→",
+          "title": "Próxima aba",
+          "description": "Na janela de ferramentas, avança para a próxima aba em navegação circular.",
+          "keywords": [
+            "atalho",
+            "seta direita",
+            "aba",
+            "avançar",
+            "navegar"
+          ]
+        },
+        {
+          "code": "⌘←",
+          "title": "Aba anterior",
+          "description": "Na janela de ferramentas, volta para a aba anterior em navegação circular.",
+          "keywords": [
+            "atalho",
+            "seta esquerda",
+            "aba",
+            "voltar",
+            "navegar"
+          ]
+        },
+        {
           "code": "ENTER",
           "title": "Executar",
           "description": "Executa o comando digitado ou a sugestão selecionada. Depois de um cálculo, repete a última operação.",
@@ -494,7 +631,7 @@
         {
           "code": "ESC",
           "title": "Cancelar ou limpar",
-          "description": "Fecha sugestões, cancela a operação atual ou remove o PDF ativo.",
+          "description": "Fecha sugestões ou cancela a operação atual. Na janela compartilhada de ferramentas, fecha a janela e libera o PDF de todas as abas, incluindo miniaturas, históricos, contexto compartilhado e arquivos temporários.",
           "keywords": [
             "cancelar",
             "limpar"
@@ -524,6 +661,18 @@
           "keywords": [
             "botão",
             "código"
+          ]
+        },
+        {
+          "code": "CHATGPT",
+          "title": "Abrir Codex",
+          "description": "Ícone superior ao lado de </> que traz o Codex para a frente para revisar ou alterar o projeto M87.",
+          "keywords": [
+            "chatgpt",
+            "codex",
+            "alterar",
+            "desenvolvimento",
+            "botão"
           ]
         },
         {
@@ -561,6 +710,23 @@
       "title": "DESENVOLVEDOR",
       "intro": "Estrutura, comandos e fluxo oficial de desenvolvimento e atualização.",
       "items": [
+        {
+          "code": "PADRÃO VISUAL DAS FERRAMENTAS",
+          "title": "Composição compartilhada entre as abas",
+          "description": "Geometria, Imposição, Montagem e EAN-13 usam o mesmo sistema visual definido em ui/tool_design.py: fundo #080a0d, coluna de controlos com 400 px, margens 14/12, cartões cinza com borda branca de baixa opacidade, títulos amarelos de 9 px, rótulos de 8 px, campos de 20 px sem contorno amarelo de foco, chips compactos e sugestões multilinha com espaçamento uniforme.",
+          "keywords": [
+            "interface",
+            "layout",
+            "design system",
+            "cartões",
+            "campos",
+            "chips",
+            "geometria",
+            "imposição",
+            "montagem",
+            "ean-13"
+          ]
+        },
         {
           "code": "ESTRUTURA",
           "title": "Pastas principais",

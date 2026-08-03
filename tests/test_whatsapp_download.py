@@ -6,11 +6,9 @@ from unittest.mock import patch
 
 from core.whatsapp_download import (
     WhatsAppRequest,
-    _cached_chats,
     _filename_from_media_title,
     _is_outgoing_labels,
     _message_matches,
-    _save_chats_cache,
     _validate_completed_batch,
     available_path,
     output_directory,
@@ -60,13 +58,6 @@ class WhatsAppCommandTests(unittest.TestCase):
 
         with patch("core.whatsapp_download.DOWNLOAD_ROOT", desktop):
             self.assertEqual(output_directory(request), desktop)
-
-    def test_recent_conversation_cache_avoids_a_new_browser_load(self):
-        with tempfile.TemporaryDirectory() as directory:
-            cache = Path(directory) / "active_chats.json"
-            with patch("core.whatsapp_download.CHATS_CACHE_FILE", cache):
-                _save_chats_cache(["Pedro Reis", "Anna Land"])
-                self.assertEqual(_cached_chats(), ["Pedro Reis", "Anna Land"])
 
     def test_partial_batch_is_never_reported_as_success(self):
         with tempfile.TemporaryDirectory() as directory:

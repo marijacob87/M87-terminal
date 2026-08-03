@@ -11,6 +11,8 @@ from core.imposition import (
     MM_TO_PT,
     ImpositionError,
     _bleed_destination,
+    automatic_filename,
+    automatic_sheet_label,
     build_custom_layout,
     calculate_layouts,
     calculate_plans,
@@ -215,9 +217,31 @@ class LayoutTests(unittest.TestCase):
             build_custom_layout(210, 297, 100, 100, 5, 10, 3, 3, False)
         )
 
+    def test_gripper_reserves_ten_extra_mm_at_bottom(self):
+        option = calculate_layouts(
+            320, 450, 100, 50, 2, 10, bottom_margin_extra_mm=10
+        )[0]
+        top_free = option.start_y_mm
+        bottom_free = (
+            option.paper_height_mm
+            - option.start_y_mm
+            - option.occupied_height_mm
+        )
+        self.assertAlmostEqual(bottom_free - top_free, 10, places=4)
+
     def test_plan_rules_for_repeat_and_sequential_modes(self):
         self.assertEqual(calculate_plans("repeat", 10, 4, 101), 26)
         self.assertEqual(calculate_plans("sequential", 10, 4, 3), 9)
+
+    def test_multi_artwork_production_text_uses_total_plans(self):
+        name = automatic_filename(
+            "Compra TicketLine.pdf", 10, 20, "Mat350g", each_artwork=True
+        )
+        label = automatic_sheet_label(
+            "Compra TicketLine.pdf", 10, 20, "Mat350g", each_artwork=True
+        )
+        self.assertTrue(name.startswith("10un cada_20pl_Mat350g_"))
+        self.assertIn("10un cada arte • 20 Planos", label)
 
     def test_asymmetric_bleed_rotates_clockwise(self):
         trim = fitz.Rect(10, 20, 110, 70)
@@ -314,6 +338,34 @@ class ExportTests(unittest.TestCase):
                 document.close()
 
         self.assertEqual(summary.plans, 5)
+
+    def test_sheet_identifier_does_not_include_page_fraction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf", page_count=6)
+            output = root / "identified.pdf"
+
+            export_imposition(
+                source,
+                output,
+                self._layout(),
+                gutter_mm=2,
+                mode="sequential",
+                quantity_each=1,
+                crop_marks=False,
+                identify_sheets=True,
+                sheet_label="10un cada arte • 20 Planos",
+            )
+
+            document = fitz.open(output)
+            try:
+                self.assertEqual(document.page_count, 3)
+                for page in document:
+                    text = page.get_text()
+                    self.assertIn("20 Planos", text)
+                    self.assertNotRegex(text, r"\b\d+/3\b")
+            finally:
+                document.close()
 
     def test_preserves_icc_spot_and_transparency_without_claiming_pdfx(self):
         with tempfile.TemporaryDirectory() as directory:

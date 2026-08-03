@@ -1,31 +1,9 @@
-import subprocess
 import urllib.request
 from datetime import datetime
 
 import psutil
 
 from core.network_volumes import get_network_status
-
-def get_battery():
-    try:
-        result = subprocess.run(
-            ["pmset", "-g", "batt"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-
-        output = result.stdout
-
-        for part in output.split():
-            if "%" in part:
-                return part.replace(";", "")
-
-        return "100%"
-
-    except Exception:
-        return "100%"
-
 
 def get_porto_temp():
     try:
@@ -65,7 +43,6 @@ def get_status_data(weather_temp):
         "data": f"{dias[now.weekday()]} {now.strftime('%d/%m/%Y')}",
         "hora": now.strftime("%H:%M"),
         "temp": weather_temp,
-        "battery": get_battery(),
         "ram": get_ram_usage(),
         "cpu": get_cpu_usage(),
         "networks": get_network_status(),

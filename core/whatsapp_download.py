@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import re
-import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import date
@@ -10,8 +8,6 @@ from pathlib import Path
 
 WHATSAPP_URL = "https://web.whatsapp.com/"
 SESSION_DIR = Path.home() / "Library" / "Application Support" / "M87 Terminal" / "WhatsApp"
-CHATS_CACHE_FILE = SESSION_DIR / "active_chats.json"
-CHATS_CACHE_SECONDS = 300
 DOWNLOAD_ROOT = Path.home() / "Desktop"
 CHROME_PATHS = (
     Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
@@ -107,38 +103,8 @@ def _open_authenticated_page(context, timeout_error, notify):
     return page
 
 
-def _cached_chats() -> list[str]:
-    try:
-        data = json.loads(CHATS_CACHE_FILE.read_text(encoding="utf-8"))
-        created = float(data.get("created", 0))
-        chats = data.get("chats", [])
-    except (OSError, ValueError, TypeError):
-        return []
-
-    if time.time() - created > CHATS_CACHE_SECONDS:
-        return []
-    if not isinstance(chats, list):
-        return []
-
-    return [str(chat) for chat in chats if str(chat).strip()]
-
-
-def _save_chats_cache(chats: list[str]) -> None:
-    temporary = CHATS_CACHE_FILE.with_suffix(".tmp")
-    data = {"created": time.time(), "chats": chats}
-    temporary.write_text(
-        json.dumps(data, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    temporary.replace(CHATS_CACHE_FILE)
-
-
 def list_active_whatsapp_chats(progress=None, limit: int = 20) -> list[str]:
     """Lista as conversas atualmente visíveis na barra lateral do WhatsApp."""
-    cached = _cached_chats()
-    if cached:
-        return cached[:limit]
-
     try:
         from playwright.sync_api import TimeoutError as PlaywrightTimeout
         from playwright.sync_api import sync_playwright
@@ -179,7 +145,6 @@ def list_active_whatsapp_chats(progress=None, limit: int = 20) -> list[str]:
             if not chats:
                 raise WhatsAppDownloadError("Não encontrei conversas ativas no WhatsApp.")
 
-            _save_chats_cache(chats)
             return chats
         finally:
             context.close()
@@ -462,7 +427,6 @@ def download_whatsapp_files(request: WhatsAppRequest, progress=None) -> tuple[in
                     break
 
             if selected_row is None:
-                CHATS_CACHE_FILE.unlink(missing_ok=True)
                 raise WhatsAppDownloadError(
                     f'A conversa "{request.contact}" já não está visível. '
                     "Digite WPP novamente para atualizar a lista."
