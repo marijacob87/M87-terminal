@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 import fitz  # PyMuPDF
 
@@ -342,24 +342,34 @@ def build_custom_layout(
         paper_height_mm=paper_height_mm,
     )
 
-def _placement_rects(layout: LayoutOption) -> Iterable[tuple[int, fitz.Rect]]:
-    index = 0
-    for row in range(layout.rows):
-        for col in range(layout.columns):
-            x0 = layout.start_x_mm + col * (layout.item_width_mm + 0.0)
-            # Add gutter separately to avoid cumulative floating surprises.
-            x0 += col * 0.0
-            y0 = layout.start_y_mm + row * (layout.item_height_mm + 0.0)
-            y0 += row * 0.0
-            # Actual step is reconstructed from occupied geometry below by caller.
-            yield index, fitz.Rect(
-                x0 * MM_TO_PT,
-                y0 * MM_TO_PT,
-                (x0 + layout.item_width_mm) * MM_TO_PT,
-                (y0 + layout.item_height_mm) * MM_TO_PT,
-            )
-            index += 1
 
+def transform_duplex_back_slots(
+    values: list,
+    rows: int,
+    columns: int,
+    paper_width_mm: float,
+    paper_height_mm: float,
+    flip_long_edge: bool,
+) -> list:
+    """Converte a grade lógica do verso para as coordenadas físicas do PDF.
+
+    A interface mostra frente e verso em posições correspondentes. Para que
+    essas posições coincidam depois da virada, o PDF do verso precisa ser
+    espelhado no eixo determinado pela orientação e pela borda escolhida.
+    """
+    if rows < 1 or columns < 1 or len(values) != rows * columns:
+        return list(values)
+    matrix = [
+        list(values[row * columns:(row + 1) * columns])
+        for row in range(rows)
+    ]
+    portrait = paper_height_mm >= paper_width_mm
+    mirror_columns = flip_long_edge == portrait
+    if mirror_columns:
+        matrix = [list(reversed(row)) for row in matrix]
+    else:
+        matrix = list(reversed(matrix))
+    return [value for row in matrix for value in row]
 
 def _trim_rect_for_slot(layout: LayoutOption, row: int, col: int, gutter_mm: float) -> fitz.Rect:
     x0 = layout.start_x_mm + col * (layout.item_width_mm + gutter_mm)
@@ -475,11 +485,10 @@ def automatic_filename(
     stem = _safe_filename_part(Path(source_path).stem, "Arquivo")
     clean_material = _safe_filename_part(material, "Material")
     date_text = datetime.now().strftime("%d%m%Y")
-    production_text = (
-        f"{quantity}un cada_{plans}pl"
-        if each_artwork
-        else f"{quantity}un {plans}pl"
-    )
+    # ``plans`` representa a quantidade de folhas de produção por página/arte.
+    # Em PDFs frente e verso, ambas as páginas usam a mesma tiragem; somá-las
+    # produziria um nome incompatível com o lançamento 10+10 na planilha.
+    production_text = f"{quantity}un {plans}p"
     return f"{production_text}_{clean_material}_{stem}_{date_text}.pdf"
 
 
@@ -494,8 +503,7 @@ def automatic_sheet_label(
     stem = _safe_filename_part(Path(source_path).stem, "Arquivo")
     clean_material = _safe_filename_part(material, "Material")
     date_text = datetime.now().strftime("%d/%m/%Y")
-    quantity_text = f"{quantity}un cada arte" if each_artwork else f"{quantity}un"
-    return f"{quantity_text} • {plans} Planos • {clean_material} • {stem} • {date_text}"
+    return f"{quantity}un {plans} Planos • {clean_material} • {stem} • {date_text}"
 
 
 def _draw_sheet_label(
@@ -658,6 +666,120 @@ def export_imposition(
         requested_quantity=quantity_each,
         plans=plans,
         imposed_pages=len(page_groups),
+        items_per_sheet=layout.total,
+        output_intent_preserved=preservation.output_intent_preserved,
+        source_pdfx=preservation.source_pdfx,
+    )
+
+
+def export_manual_imposition(
+    source_path: str | os.PathLike[str],
+    output_path: str | os.PathLike[str],
+    layout: LayoutOption,
+    gutter_mm: float,
+    front_pages: list[int | None],
+    back_pages: list[int | None] | None = None,
+    front_rotations: list[int] | None = None,
+    back_rotations: list[int] | None = None,
+    crop_marks: bool = True,
+    crop_mark_offset_mm: float = 3.0,
+    crop_mark_length_mm: float = 5.0,
+    crop_mark_thickness_pt: float = 0.25,
+) -> ExportSummary:
+    """Exporta uma folha manual, usando índices de página baseados em zero.
+
+    A ordem recebida corresponde exatamente à grade mostrada na tela, da
+    esquerda para a direita e de cima para baixo. ``None`` mantém o slot vazio.
+    """
+    src_path = Path(source_path).expanduser().resolve()
+    out_path = Path(output_path).expanduser().resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sides = [list(front_pages)]
+    rotations = [list(front_rotations or [0] * layout.total)]
+    if back_pages is not None:
+        sides.append(list(back_pages))
+        rotations.append(list(back_rotations or [0] * layout.total))
+    if any(len(side) != layout.total for side in sides):
+        raise ImpositionError("A quantidade de posições não corresponde à grade.")
+    if any(len(side_rotations) != layout.total for side_rotations in rotations):
+        raise ImpositionError("A quantidade de rotações não corresponde à grade.")
+
+    try:
+        source = open_pdf_for_imposition(src_path)
+    except Exception as exc:
+        raise ImpositionError(f"Não foi possível abrir o PDF para exportar: {exc}") from exc
+
+    output = fitz.open()
+    try:
+        for value in (page for side in sides for page in side if page is not None):
+            if value < 0 or value >= source.page_count:
+                raise ImpositionError(f"A página {value + 1} não existe no PDF.")
+
+        for source_page in source:
+            try:
+                source_page.set_cropbox(source_page.mediabox)
+            except Exception:
+                pass
+
+        for side_index, side in enumerate(sides):
+            out_page = output.new_page(
+                width=layout.paper_width_mm * MM_TO_PT,
+                height=layout.paper_height_mm * MM_TO_PT,
+            )
+            for slot_index, source_index in enumerate(side):
+                if source_index is None:
+                    continue
+                row, col = divmod(slot_index, layout.columns)
+                trim_dest = _trim_rect_for_slot(layout, row, col, gutter_mm)
+                src_page = source[source_index]
+                src_trim = fitz.Rect(src_page.trimbox)
+                src_bleed = effective_bleed_rect(src_page)
+                bleed_dest = _bleed_destination(
+                    trim_dest, src_trim, src_bleed, layout.rotated
+                )
+                out_page.show_pdf_page(
+                    bleed_dest,
+                    source,
+                    source_index,
+                    keep_proportion=True,
+                    overlay=True,
+                    rotate=(
+                        (90 if layout.rotated else 0)
+                        + rotations[side_index][slot_index]
+                    ) % 360,
+                    clip=src_bleed,
+                )
+            if crop_marks:
+                _draw_outer_crop_marks(
+                    out_page,
+                    layout,
+                    gutter_mm,
+                    length_mm=crop_mark_length_mm,
+                    distance_mm=crop_mark_offset_mm,
+                    thickness_pt=crop_mark_thickness_pt,
+                )
+
+        output.save(out_path, garbage=4, deflate=True, clean=False)
+        preservation = preserve_output_intents(src_path, out_path)
+    except PdfPreservationError as exc:
+        if out_path.exists():
+            out_path.unlink()
+        raise ImpositionError(str(exc)) from exc
+    except Exception as exc:
+        if out_path.exists():
+            out_path.unlink()
+        if isinstance(exc, ImpositionError):
+            raise
+        raise ImpositionError(f"Não foi possível gerar a imposição: {exc}") from exc
+    finally:
+        output.close()
+        source.close()
+
+    return ExportSummary(
+        output_path=out_path,
+        requested_quantity=1,
+        plans=1,
+        imposed_pages=len(sides),
         items_per_sheet=layout.total,
         output_intent_preserved=preservation.output_intent_preserved,
         source_pdfx=preservation.source_pdfx,

@@ -31,6 +31,6 @@ de implementação e devem respeitar estabilidade e reutilização da arquitetur
 
 ## Integrações futuras
 
-- contexto para imagens, pastas, Illustrator, InDesign e ZIP;
+- contexto para imagens, pastas, Illustrator e InDesign;
 - sugestões assistidas por linguagem natural;
 - sistema de plugins, se houver necessidade real.

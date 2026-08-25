@@ -19,8 +19,17 @@ Responsável apenas pela apresentação e interação:
 - `window_ui.py`: construção dos widgets da janela;
 - `window_behavior.py`: movimento, tamanho e persistência;
 - `command_controller.py`: comandos e ferramentas;
+- `command_workflows.py`: rotinas assíncronas iniciadas pelos comandos;
 - `pdf_context.py`: drag and drop e ações do PDF ativo;
-- `tools_dialog.py`: janela compartilhada entre IMP, GEO, MON e BAR;
+- `tools_dialog.py`: janela compartilhada entre ORG, GEO, IMP, MON e BAR;
+- `tools_components.py`: barra de abas e camada compartilhada de drop;
+- `imposition_preview.py`: renderização e navegação da prévia de imposição;
+- `geometry_controls.py`: seletor de âncora da geometria;
+- `geometry_preview.py`: renderização e navegação da prévia geométrica;
+- `geometry_workers.py`: execução assíncrona das alterações geométricas;
+- `design_tokens.py`: fonte única de cores, dimensões e espaçamentos;
+- `tool_design.py`: componentes e estilos compartilhados pelas ferramentas;
+- `organize_pages_widget.py`: interface de organização de páginas;
 - `widgets.py`: componentes reutilizáveis.
 
 Operações lentas devem usar `QThread`, `QProcess` ou worker equivalente.
@@ -33,9 +42,10 @@ Contém regras de negócio e integrações:
 - `input_handler.py`: interpretação do prompt;
 - `imposition.py`: inspeção, cálculo e exportação de imposições;
 - `pdf_info.py`: análise estrutural de PDFs;
-- `update_manager.py`: validação, backup, instalação e rollback;
 - `system_actions.py`: ações de sessão e limpeza;
 - `code_tools.py`: QR Code e EAN-13.
+- `konica_spool.py`: envio de PDFs ao Hot Folder/Hold da Konica;
+- `project_metadata.py`: leitura de referência, histórico Git e informações do sistema;
 
 Funções puras devem permanecer independentes do Qt sempre que possível.
 
@@ -58,16 +68,13 @@ gerados durante a execução e nunca utilizam documentos do usuário.
 - `state.json`: posição e tamanho persistentes da janela;
 - `core/config.py`: constantes e caminhos resolvidos pela raiz do projeto.
 
-## Atualizações
+## Sistema visual
 
-O pacote contém `update.json` e apenas os arquivos modificados. O instalador:
+As cinco ferramentas são superfícies da mesma `ToolsDialog`. Parâmetros
+globais ficam em `ui/design_tokens.py`; widgets e QSS compartilhados ficam em
+`ui/tool_design.py`. A especificação completa e o checklist de revisão estão
+em `docs/VISUAL_SYSTEM.md`.
 
-1. valida manifesto e caminhos;
-2. cria `backup/ultimo_backup.zip`;
-3. extrai para staging;
-4. preserva os arquivos anteriores para rollback;
-5. substitui cada destino atomicamente;
-6. restaura tudo se qualquer substituição falhar;
-7. move o pacote instalado para a Lixeira.
-
-O formato de `update.json` não deve ser alterado.
+Não é permitido criar uma versão local de um componente que já exista nesse
+módulo. Exceções visuais de janelas especializadas devem ser deliberadas e não
+podem alterar os estados ou medidas das ferramentas compartilhadas.

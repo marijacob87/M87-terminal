@@ -7,40 +7,39 @@ import tempfile
 from pathlib import Path
 
 import fitz
-from PySide6.QtCore import QPointF, QSettings, QRectF, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PySide6.QtCore import QSettings, Qt, QTimer, Signal
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
-    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QGridLayout, QHBoxLayout, QLabel,
     QMessageBox, QPushButton,
     QRadioButton, QSpinBox, QVBoxLayout, QWidget,
 )
 from ui.expression_spinbox import ExpressionDoubleSpinBox
+from ui.geometry_controls import AnchorSelector
+from ui.geometry_preview import GeometryPreview
+from ui.geometry_workers import GeometryApplyWorker
 from ui.tool_design import (
-    TOOL_CARD_MARGINS, TOOL_CARD_SPACING, TOOL_CONTROLS_WIDTH,
-    TOOL_STANDARD_QSS, configure_measure_swap, set_tool_role,
+    TOOL_BACKGROUND, TOOL_BUTTON_HEIGHT, TOOL_CARD_MARGINS, TOOL_CARD_SPACING,
+    TOOL_COLUMN_SPACING, TOOL_CONTROLS_WIDTH, TOOL_FIELD_HEIGHT,
+    TOOL_STANDARD_QSS, ToolActionBar, ToolPreviewToolbar,
+    configure_measure_swap,
+    create_pdf_file_card, set_open_pdf_loaded,
+    apply_terminal_accent, draw_empty_pdf_message, format_pdf_file_summary,
+    set_document_control_enabled, set_tool_role,
 )
+from ui.konica_print import spool_pdf
 
 from core.geometry import (
     BoxSettings, FormatSettings, GeometryDocumentInfo,
-    GeometryError, GeometrySettings, apply_geometry, inspect_geometry,
+    GeometryError, GeometrySettings, inspect_geometry,
 )
+from core.preferences import save_path
 
-YELLOW = "#FFC400"
-RED = "#FF4B4B"
-ANCHOR_NAMES = (
-    "top_left", "top", "top_right",
-    "left", "center", "right",
-    "bottom_left", "bottom", "bottom_right",
-)
 FIXED_FORMATS = {
     "A4 · 210 × 297": (210.0, 297.0),
     "A3 · 297 × 420": (297.0, 420.0),
 }
-
-
-def _decimal(value):
-    return f"{value:.2f}".replace(".", ",")
 
 
 def _compact_decimal(value):
@@ -68,378 +67,6 @@ def _field(label, widget):
     layout.addWidget(caption)
     layout.addWidget(widget)
     return layout
-
-
-class AnchorSelector(QWidget):
-    changed = Signal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.group = QButtonGroup(self)
-        self.group.setExclusive(True)
-        layout = QGridLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(3)
-        for index, name in enumerate(ANCHOR_NAMES):
-            button = QPushButton()
-            button.setObjectName("geoAnchor")
-            button.setCheckable(True)
-            button.setFixedSize(12, 12)
-            button.setToolTip(name.replace("_", " ").title())
-            self.group.addButton(button, index)
-            layout.addWidget(button, index // 3, index % 3)
-        self.setFixedSize(42, 42)
-        self.group.idClicked.connect(
-            lambda index: self.changed.emit(ANCHOR_NAMES[index])
-        )
-        self.set_anchor("center")
-
-    def anchor(self):
-        index = self.group.checkedId()
-        return ANCHOR_NAMES[index] if index >= 0 else "center"
-
-    def set_anchor(self, anchor):
-        index = ANCHOR_NAMES.index(anchor) if anchor in ANCHOR_NAMES else 4
-        self.group.button(index).setChecked(True)
-
-
-class GeometryPreview(QWidget):
-    zoomChanged = Signal(int)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("geoPreview")
-        self.setMinimumSize(430, 390)
-        self.media = None
-        self.trim = None
-        self.content = None
-        self.page_image = QPixmap()
-        self._zoom = 1.0
-        self._pan = QPointF()
-        self._drag_origin = None
-
-    def set_boxes(self, media, trim, page_image=None, content=None):
-        self.media = media
-        self.trim = trim
-        self.content = content
-        if page_image is not None:
-            self.page_image = page_image
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor(8, 10, 13))
-        if not self.media:
-            painter.setPen(QColor(255, 255, 255, 90))
-            painter.drawText(
-                self.rect(), Qt.AlignCenter,
-                "Arraste um PDF para visualizar a geometria",
-            )
-            return
-        area = QRectF(self.rect()).adjusted(55, 55, -55, -55)
-        scale = min(
-            area.width() / max(self.media.width_mm, 1),
-            area.height() / max(self.media.height_mm, 1),
-        ) * self._zoom
-        media_rect = QRectF(
-            area.center().x() - self.media.width_mm * scale / 2 + self._pan.x(),
-            area.center().y() - self.media.height_mm * scale / 2 + self._pan.y(),
-            self.media.width_mm * scale,
-            self.media.height_mm * scale,
-        )
-        painter.fillRect(media_rect, QColor(235, 235, 230))
-        if not self.page_image.isNull():
-            content = self.content or self.media
-            content_rect = QRectF(
-                media_rect.left() + content.x_mm * scale,
-                media_rect.top() + content.y_mm * scale,
-                content.width_mm * scale,
-                content.height_mm * scale,
-            )
-            painter.drawPixmap(content_rect.toRect(), self.page_image)
-        trim_rect = QRectF(
-            media_rect.left() + self.trim.x_mm * scale,
-            media_rect.top() + self.trim.y_mm * scale,
-            self.trim.width_mm * scale,
-            self.trim.height_mm * scale,
-        )
-        painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(QColor(YELLOW), 1.4, Qt.DashLine))
-        painter.drawRect(media_rect)
-        painter.setPen(QPen(QColor(RED), 1.5, Qt.DashLine))
-        painter.drawRect(trim_rect)
-        painter.setPen(QColor(YELLOW))
-        painter.drawText(
-            QRectF(media_rect.left(), media_rect.top() - 24, media_rect.width(), 18),
-            Qt.AlignCenter,
-            f"MEDIABOX  {_decimal(self.media.width_mm)} × "
-            f"{_decimal(self.media.height_mm)} mm",
-        )
-        painter.setPen(QColor("#FF6262"))
-        painter.drawText(
-            QRectF(trim_rect.left(), trim_rect.bottom() + 7, trim_rect.width(), 18),
-            Qt.AlignCenter,
-            f"TRIMBOX  {_decimal(self.trim.width_mm)} × "
-            f"{_decimal(self.trim.height_mm)} mm",
-        )
-
-    def set_zoom(self, zoom):
-        self._zoom = min(4.0, max(.5, zoom))
-        if self._zoom <= 1.0:
-            self._pan = QPointF()
-        self.zoomChanged.emit(round(self._zoom * 100))
-        self.update()
-
-    def zoom_in(self):
-        self.set_zoom(self._zoom + .25)
-
-    def zoom_out(self):
-        self.set_zoom(self._zoom - .25)
-
-    def reset_zoom(self):
-        self._pan = QPointF()
-        self.set_zoom(1.0)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self._zoom > 1.0:
-            self._drag_origin = event.position()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        if self._drag_origin is not None:
-            self._pan += event.position() - self._drag_origin
-            self._drag_origin = event.position()
-            self.update()
-            event.accept()
-
-    def mouseReleaseEvent(self, event):
-        if self._drag_origin is not None:
-            self._drag_origin = None
-            self.unsetCursor()
-            event.accept()
-
-
-class GeometryApplyWorker(QThread):
-    succeeded = Signal(object, str, str, str)
-    failed = Signal(str, str, str)
-
-    def __init__(self, source, output, settings, pages, operation, undo_path):
-        super().__init__()
-        self.source = source
-        self.output = output
-        self.settings = settings
-        self.pages = pages
-        self.operation = operation
-        self.undo_path = undo_path
-
-    def run(self):
-        try:
-            info = apply_geometry(
-                self.source, self.output, self.settings, self.pages
-            )
-        except Exception as exc:
-            self.failed.emit(str(exc), self.operation, self.output)
-            return
-        self.succeeded.emit(
-            info, self.output, self.operation, self.undo_path
-        )
-
-
-class FormatLibraryDialog(QDialog):
-    def __init__(self, custom_formats, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("M87 • BIBLIOTECA DE FORMATOS")
-        self.setModal(True)
-        self.setFixedWidth(430)
-        self.custom_formats = {
-            name: list(dimensions)
-            for name, dimensions in custom_formats.items()
-        }
-        self._editing_name = None
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
-
-        self.formats = QListWidget()
-        self.formats.setMinimumHeight(175)
-        layout.addWidget(self.formats)
-
-        self.name = QLineEdit()
-        self.name.setPlaceholderText("Nome do formato")
-        layout.addLayout(_field("NOME", self.name))
-
-        dimensions = QHBoxLayout()
-        self.width = _spin(210)
-        self.height = _spin(297)
-        dimensions.addLayout(_field("LARGURA", self.width))
-        dimensions.addLayout(_field("ALTURA", self.height))
-        layout.addLayout(dimensions)
-
-        edit_actions = QHBoxLayout()
-        new = QPushButton("NOVO")
-        self.move_up = QPushButton("↑")
-        self.move_down = QPushButton("↓")
-        self.delete = QPushButton("APAGAR")
-        self.save = QPushButton("SALVAR")
-        new.setObjectName("geoSecondary")
-        self.move_up.setObjectName("geoSecondary")
-        self.move_down.setObjectName("geoSecondary")
-        self.delete.setObjectName("geoSecondary")
-        self.save.setObjectName("geoInlinePrimary")
-        self.move_up.setFixedWidth(32)
-        self.move_down.setFixedWidth(32)
-        self.move_up.setToolTip("Subir formato")
-        self.move_down.setToolTip("Descer formato")
-        edit_actions.addWidget(new)
-        edit_actions.addWidget(self.move_up)
-        edit_actions.addWidget(self.move_down)
-        edit_actions.addStretch()
-        edit_actions.addWidget(self.delete)
-        edit_actions.addWidget(self.save)
-        layout.addLayout(edit_actions)
-
-        actions = QHBoxLayout()
-        actions.addStretch()
-        cancel = QPushButton("CANCELAR")
-        cancel.setObjectName("geoSecondary")
-        finish = QPushButton("CONCLUIR")
-        finish.setObjectName("geoInlinePrimary")
-        cancel.setFixedWidth(88)
-        finish.setFixedWidth(88)
-        actions.addWidget(cancel)
-        actions.addWidget(finish)
-        layout.addLayout(actions)
-        self.formats.currentItemChanged.connect(self._selection_changed)
-        new.clicked.connect(self._new_format)
-        self.move_up.clicked.connect(lambda: self._move_format(-1))
-        self.move_down.clicked.connect(lambda: self._move_format(1))
-        self.delete.clicked.connect(self._delete_format)
-        self.save.clicked.connect(self._save_format)
-        cancel.clicked.connect(self.reject)
-        finish.clicked.connect(self.accept)
-        self._reload_list()
-        self._new_format()
-
-    def _reload_list(self, selected=None):
-        self.formats.blockSignals(True)
-        self.formats.clear()
-        selected_item = None
-        for name, dimensions in FIXED_FORMATS.items():
-            item = QListWidgetItem(
-                f"{name}   ·   {_decimal(dimensions[0])} × "
-                f"{_decimal(dimensions[1])} mm   ·   PADRÃO"
-            )
-            item.setData(Qt.ItemDataRole.UserRole, name)
-            item.setData(Qt.ItemDataRole.UserRole + 1, True)
-            self.formats.addItem(item)
-        for name, dimensions in self.custom_formats.items():
-            item = QListWidgetItem(
-                f"{name}   ·   {_decimal(float(dimensions[0]))} × "
-                f"{_decimal(float(dimensions[1]))} mm"
-            )
-            item.setData(Qt.ItemDataRole.UserRole, name)
-            item.setData(Qt.ItemDataRole.UserRole + 1, False)
-            self.formats.addItem(item)
-            if name == selected:
-                selected_item = item
-        if selected_item is not None:
-            self.formats.setCurrentItem(selected_item)
-        self.formats.blockSignals(False)
-        if selected_item is not None:
-            self._selection_changed(selected_item, None)
-
-    def _selection_changed(self, current, _previous):
-        if current is None:
-            return
-        name = current.data(Qt.ItemDataRole.UserRole)
-        builtin = bool(current.data(Qt.ItemDataRole.UserRole + 1))
-        dimensions = FIXED_FORMATS[name] if builtin else self.custom_formats[name]
-        self._editing_name = None if builtin else name
-        self.name.setText(name)
-        self.width.setValue(float(dimensions[0]))
-        self.height.setValue(float(dimensions[1]))
-        self.name.setEnabled(not builtin)
-        self.width.setEnabled(not builtin)
-        self.height.setEnabled(not builtin)
-        self.save.setEnabled(not builtin)
-        self.delete.setEnabled(not builtin)
-        custom_names = list(self.custom_formats)
-        position = custom_names.index(name) if not builtin else -1
-        self.move_up.setEnabled(not builtin and position > 0)
-        self.move_down.setEnabled(
-            not builtin and position < len(custom_names) - 1
-        )
-
-    def _new_format(self):
-        self.formats.clearSelection()
-        self.formats.setCurrentRow(-1)
-        self._editing_name = None
-        self.name.clear()
-        self.width.setValue(210)
-        self.height.setValue(297)
-        self.name.setEnabled(True)
-        self.width.setEnabled(True)
-        self.height.setEnabled(True)
-        self.save.setEnabled(True)
-        self.delete.setEnabled(False)
-        self.move_up.setEnabled(False)
-        self.move_down.setEnabled(False)
-        self.name.setFocus()
-
-    def _save_format(self):
-        name = self.name.text().strip()
-        if not name:
-            QMessageBox.warning(
-                self, "M87 • FORMATOS", "Informe o nome do formato."
-            )
-            return
-        existing_names = set(FIXED_FORMATS) | set(self.custom_formats)
-        if name != self._editing_name and name in existing_names:
-            QMessageBox.warning(
-                self, "M87 • FORMATOS",
-                "Já existe um formato com esse nome. Escolha outro nome.",
-            )
-            return
-        if self._editing_name and self._editing_name != name:
-            del self.custom_formats[self._editing_name]
-        self.custom_formats[name] = [self.width.value(), self.height.value()]
-        self._editing_name = name
-        self._reload_list(selected=name)
-
-    def _move_format(self, offset):
-        if not self._editing_name:
-            return
-        names = list(self.custom_formats)
-        current = names.index(self._editing_name)
-        target = current + offset
-        if target < 0 or target >= len(names):
-            return
-        names[current], names[target] = names[target], names[current]
-        self.custom_formats = {
-            name: self.custom_formats[name]
-            for name in names
-        }
-        self._reload_list(selected=self._editing_name)
-
-    def _delete_format(self):
-        if not self._editing_name:
-            return
-        answer = QMessageBox.question(
-            self, "M87 • FORMATOS",
-            f"Apagar o formato “{self._editing_name}”?",
-            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
-            QMessageBox.StandardButton.Cancel,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        del self.custom_formats[self._editing_name]
-        self._reload_list()
-        self._new_format()
-
-    def formats_value(self):
-        return self.custom_formats
 
 
 class GeometryWidget(QWidget):
@@ -475,6 +102,7 @@ class GeometryWidget(QWidget):
         self._operation_buttons = {}
         self._format_quick_buttons = []
         self._build_ui()
+        apply_terminal_accent(self)
         self._connect()
         self._set_enabled(False)
 
@@ -483,69 +111,59 @@ class GeometryWidget(QWidget):
         root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(9)
         body = QHBoxLayout()
-        body.setSpacing(12)
+        body.setSpacing(TOOL_COLUMN_SPACING)
         controls = QWidget()
         controls.setObjectName("geoControls")
         set_tool_role(controls, "controls")
         left = QVBoxLayout(controls)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(7)
-        left.addWidget(self._library_card())
-        left.addWidget(self._format_card())
-        left.addWidget(self._sizes_card())
-        left.addWidget(self._cleanup_card())
+        file_card, self.open_button, self.file_label = create_pdf_file_card(
+            self._choose_pdf
+        )
+        left.addWidget(file_card)
+        format_card = self._format_card()
+        sizes_card = self._sizes_card()
+        cleanup_card = self._cleanup_card()
+        self._document_cards = (
+            format_card, sizes_card, cleanup_card,
+        )
+        for card in self._document_cards:
+            left.addWidget(card)
         left.addStretch()
         controls.setFixedWidth(TOOL_CONTROLS_WIDTH)
         body.addWidget(controls)
 
         right = QVBoxLayout()
-        navigation = QHBoxLayout()
-        self.previous_page = QPushButton("‹")
-        self.next_page = QPushButton("›")
-        self.page_label = QLabel("Nenhum PDF")
-        self.page_label.setObjectName("geoPageLabel")
-        self.zoom_out_button = QPushButton("−")
-        self.zoom_label = QPushButton("100%")
-        self.zoom_in_button = QPushButton("+")
-        self.rotate_undo_button = QPushButton("↶")
-        self.rotate_button = QPushButton("↻ 90°")
-        for button in (
-            self.zoom_out_button, self.zoom_label, self.zoom_in_button,
-            self.rotate_undo_button, self.rotate_button,
-        ):
-            button.setObjectName("geoZoom")
-        self.zoom_out_button.setFixedWidth(28)
-        self.zoom_label.setFixedWidth(48)
-        self.zoom_in_button.setFixedWidth(28)
-        self.rotate_undo_button.setFixedWidth(28)
-        self.rotate_button.setFixedWidth(52)
+        self.preview_toolbar = ToolPreviewToolbar()
+        self.previous_page = self.preview_toolbar.previous_button
+        self.next_page = self.preview_toolbar.next_button
+        self.page_label = self.preview_toolbar.page_label
+        self.zoom_out_button = self.preview_toolbar.zoom_out_button
+        self.zoom_label = self.preview_toolbar.zoom_label
+        self.zoom_in_button = self.preview_toolbar.zoom_in_button
+        self.rotate_undo_button = self.preview_toolbar.rotation_undo_button
+        self.rotate_button = self.preview_toolbar.rotate_button
         self.rotate_undo_button.setToolTip("Desfazer a última rotação")
         self.rotate_button.setToolTip("Rotacionar somente esta página em 90°")
         self._operation_buttons["rotation"] = (
             self.rotate_undo_button, self.rotate_button
         )
-        navigation.addStretch()
-        navigation.addWidget(self.previous_page)
-        navigation.addWidget(self.page_label)
-        navigation.addWidget(self.next_page)
-        navigation.addSpacing(12)
-        navigation.addWidget(self.rotate_undo_button)
-        navigation.addWidget(self.rotate_button)
-        navigation.addSpacing(12)
-        navigation.addWidget(self.zoom_out_button)
-        navigation.addWidget(self.zoom_label)
-        navigation.addWidget(self.zoom_in_button)
-        navigation.addStretch()
-        right.addLayout(navigation)
+        right.addWidget(self.preview_toolbar)
         self.preview = GeometryPreview()
         right.addWidget(self.preview, 1)
-        self.file_label = QLabel("Arraste um PDF em qualquer área da janela.")
-        self.file_label.setObjectName("geoFileLabel")
-        self.file_label.setAlignment(Qt.AlignCenter)
-        right.addWidget(self.file_label)
         body.addLayout(right, 1)
         root.addLayout(body, 1)
         root.addLayout(self._bottom_bar())
+        self.action_bar = ToolActionBar(
+            restore=self._restore_original,
+            print_file=self._print_current,
+            save_as=self._save_as,
+        )
+        self.restore_button = self.action_bar.restore_button
+        self.print_button = self.action_bar.print_button
+        self.save_button = self.action_bar.save_button
+        root.addLayout(self.action_bar)
         self._apply_style()
 
     def _card(self, title):
@@ -575,17 +193,6 @@ class GeometryWidget(QWidget):
         row.addWidget(apply)
         self._operation_buttons[operation] = (undo, apply)
         return row
-
-    def _library_card(self):
-        card, layout = self._card("BIBLIOTECA DE FORMATOS")
-        self.add_format = QPushButton("＋  ADICIONAR FORMATO")
-        self.add_format.setObjectName("geoInlinePrimary")
-        self.add_format.setFixedWidth(160)
-        row = QHBoxLayout()
-        row.addWidget(self.add_format)
-        row.addStretch()
-        layout.addLayout(row)
-        return card
 
     def _format_card(self):
         card, layout = self._card("FORMATO TOTAL")
@@ -623,9 +230,11 @@ class GeometryWidget(QWidget):
     def _sizes_card(self):
         card, layout = self._card("TAMANHOS")
         target_row = QHBoxLayout()
-        self.media_target = QCheckBox("MEDIABOX")
+        target_row.setContentsMargins(0, 0, 0, 0)
+        target_row.setSpacing(14)
+        self.media_target = QRadioButton("MEDIABOX")
         self.media_target.setObjectName("geoMediaTarget")
-        self.trim_target = QCheckBox("TRIMBOX")
+        self.trim_target = QRadioButton("TRIMBOX")
         self.trim_target.setObjectName("geoTrimTarget")
         self.size_target_group = QButtonGroup(self)
         self.size_target_group.setExclusive(True)
@@ -734,27 +343,14 @@ class GeometryWidget(QWidget):
         row.addWidget(self.all_radio)
         row.addWidget(self.range_radio)
         row.addWidget(self.page_from)
-        row.addWidget(QLabel("ATÉ"))
+        self.range_to_label = QLabel("ATÉ")
+        row.addWidget(self.range_to_label)
         row.addWidget(self.page_to)
         row.addStretch()
-        summary = QVBoxLayout()
-        summary.setSpacing(4)
         self.summary_label = QLabel("")
         self.summary_label.setObjectName("geoSummary")
         self.summary_label.setAlignment(Qt.AlignRight)
-        self.restore_button = QPushButton("RESTAURAR ORIGINAL")
-        self.restore_button.setObjectName("geoSecondary")
-        self.restore_button.setFixedWidth(135)
-        self.save_button = QPushButton("SALVAR COMO…")
-        self.save_button.setObjectName("geoPrimary")
-        self.save_button.setFixedWidth(145)
-        summary.addWidget(self.summary_label)
-        summary_buttons = QHBoxLayout()
-        summary_buttons.addStretch()
-        summary_buttons.addWidget(self.restore_button)
-        summary_buttons.addWidget(self.save_button)
-        summary.addLayout(summary_buttons)
-        row.addLayout(summary)
+        row.addWidget(self.summary_label)
         return row
 
     @staticmethod
@@ -776,9 +372,6 @@ class GeometryWidget(QWidget):
         self.preview.zoomChanged.connect(
             lambda value: self.zoom_label.setText(f"{value}%")
         )
-        self.save_button.clicked.connect(self._save_as)
-        self.restore_button.clicked.connect(self._restore_original)
-        self.add_format.clicked.connect(self._add_custom_format)
         self.format_preset.currentTextChanged.connect(self._format_preset_changed)
         self.size_preset.currentTextChanged.connect(
             lambda name: self._preset_changed(
@@ -809,14 +402,19 @@ class GeometryWidget(QWidget):
         self._size_apply_timer.timeout.connect(self._apply_sizes)
 
     def _set_enabled(self, enabled):
+        for card in self._document_cards:
+            set_document_control_enabled(card, enabled)
         for widget in (
             self.save_button, self.previous_page, self.next_page,
-            self.restore_button,
+            self.restore_button, self.print_button,
             self.current_radio, self.all_radio, self.range_radio,
             self.media_target, self.trim_target,
             self.swap_format_button, self.swap_size_button,
         ):
             widget.setEnabled(enabled)
+        self.preview_toolbar.set_document_enabled(enabled)
+        for widget in (self.current_radio, self.all_radio, self.range_radio):
+            set_document_control_enabled(widget, enabled)
         for undo, apply in self._operation_buttons.values():
             apply.setEnabled(enabled)
             undo.setEnabled(
@@ -824,6 +422,19 @@ class GeometryWidget(QWidget):
                 and self._undo_stack[-1][0] == self._operation_for_button(undo)
             )
         self._range_toggled(self.range_radio.isChecked())
+        range_enabled = enabled and self.range_radio.isChecked()
+        set_document_control_enabled(self.page_from, range_enabled)
+        set_document_control_enabled(self.range_to_label, enabled)
+        set_document_control_enabled(self.page_to, range_enabled)
+
+    def _choose_pdf(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Abrir PDF", "", "PDF (*.pdf)")
+        if path:
+            self.load_pdf(path)
+
+    def _print_current(self):
+        if self.current_path:
+            spool_pdf(self, self.current_path, button=self.print_button)
 
     def _operation_for_button(self, button):
         for operation, (undo, _apply) in self._operation_buttons.items():
@@ -832,13 +443,13 @@ class GeometryWidget(QWidget):
         return ""
 
     def _apply_style(self):
-        self.setStyleSheet("""
-            QWidget#geoPage, QWidget#geoControls { background:#080a0d; }
+        style = """
+            QWidget#geoPage, QWidget#geoControls { background:__TOOL_BACKGROUND__; }
             QFrame#geoCard { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-radius:7px; }
-            QLabel#geoCardTitle { color:#FFC400; font-size:9px; font-weight:700; letter-spacing:.7px; }
-            QLabel#geoFieldLabel { color:rgba(255,255,255,.43); font-size:8px; }
+            QLabel#geoCardTitle { color:#FFC400; font-size:10px; font-weight:700; letter-spacing:.7px; }
+            QLabel#geoFieldLabel { color:rgba(255,255,255,.43); font-size:9px; }
             QLabel#geoPageLabel { color:rgba(255,255,255,.82); font-weight:700; min-width:150px; qproperty-alignment:AlignCenter; }
-            QLabel#geoFileLabel, QLabel#geoSummary { color:rgba(255,255,255,.43); font-size:9px; }
+            QLabel#geoFileLabel, QLabel#geoSummary { color:rgba(255,255,255,.43); font-size:10px; }
             QWidget#geoPreview { border:1px solid rgba(255,196,0,.18); border-radius:7px; }
             QPushButton#geoAnchor { border:1px solid rgba(255,255,255,.16); border-radius:3px; background:rgba(255,255,255,.035); padding:0; min-height:0; min-width:0; }
             QPushButton#geoAnchor:checked { background:#FFC400; border-color:#FFC400; }
@@ -852,7 +463,7 @@ class GeometryWidget(QWidget):
                 color:#FFC400; border-color:rgba(255,196,0,.35);
             }
             QPushButton#geoMiniSecondary, QPushButton#geoMiniPrimary {
-                font-size:8px; padding:0; min-height:18px;
+                font-size:9px; padding:0; min-height:18px;
                 border:1px solid rgba(255,255,255,.10);
                 background:rgba(255,255,255,.025);
             }
@@ -860,11 +471,7 @@ class GeometryWidget(QWidget):
             QPushButton#geoMiniPrimary {
                 color:rgba(255,196,0,.72); border-color:rgba(255,196,0,.22);
             }
-            QCheckBox#geoMediaTarget { color:#FFC400; }
-            QCheckBox#geoTrimTarget { color:#FF6262; }
-            QCheckBox#geoSubtleCheck { color:rgba(255,255,255,.58); font-size:9px; }
-            QCheckBox#geoSubtleCheck::indicator { width:13px; height:13px; }
-            QLabel#geoInlineLabel { color:rgba(255,255,255,.43); font-size:8px; font-weight:700; }
+            QLabel#geoInlineLabel { color:rgba(255,255,255,.43); font-size:9px; font-weight:700; }
             QFrame#geoSeparator { background:rgba(255,255,255,.08); border:none; min-height:1px; max-height:1px; }
             QWidget#geoPage QCheckBox, QWidget#geoPage QRadioButton { color:rgba(255,255,255,.78); }
             QWidget#geoPage QLabel { color:rgba(255,255,255,.66); }
@@ -886,8 +493,16 @@ class GeometryWidget(QWidget):
             QWidget#geoPage QLabel#geoFieldLabel,
             QWidget#geoPage QLabel#geoFileLabel,
             QWidget#geoPage QLabel#geoSummary { color:rgba(255,255,255,.43); }
-            QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox { min-height:20px; }
-        """ + TOOL_STANDARD_QSS)
+            QPushButton { min-height:__TOOL_BUTTON_HEIGHT__px; }
+            QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox {
+                min-height:__TOOL_FIELD_HEIGHT__px; max-height:__TOOL_FIELD_HEIGHT__px;
+                padding-top:0; padding-bottom:0;
+            }
+        """ + TOOL_STANDARD_QSS
+        style = style.replace("__TOOL_BACKGROUND__", TOOL_BACKGROUND)
+        style = style.replace("__TOOL_BUTTON_HEIGHT__", str(TOOL_BUTTON_HEIGHT))
+        style = style.replace("__TOOL_FIELD_HEIGHT__", str(TOOL_FIELD_HEIGHT))
+        self.setStyleSheet(style)
 
     def set_pdf_state(self, paths):
         paths = list(paths or [])
@@ -921,7 +536,15 @@ class GeometryWidget(QWidget):
         self.current_page = 0
         self._session = tempfile.TemporaryDirectory(prefix="m87_geometry_")
         suffix = f" · {ignored} PDF(s) ignorado(s)" if ignored else ""
-        self.file_label.setText(f"{self.pdf_path.name}{suffix}")
+        first_trim = info.pages[0].trim
+        self.file_label.setText(format_pdf_file_summary(
+            self.pdf_path.name,
+            first_trim.width_mm,
+            first_trim.height_mm,
+            info.page_count,
+            suffix,
+        ))
+        set_open_pdf_loaded(self.open_button, True)
         self.page_from.setRange(1, info.page_count)
         self.page_to.setRange(1, info.page_count)
         self.page_to.setValue(info.page_count)
@@ -948,7 +571,8 @@ class GeometryWidget(QWidget):
         self._preview_image = QPixmap()
         self.current_page = 0
         if hasattr(self, "file_label"):
-            self.file_label.setText("Arraste um PDF em qualquer área da janela.")
+            self.file_label.setText("Nenhum PDF carregado")
+            set_open_pdf_loaded(self.open_button, False)
             self.page_label.setText("Nenhum PDF")
             self.summary_label.clear()
             self.preview.set_boxes(None, None)
@@ -1262,6 +886,7 @@ class GeometryWidget(QWidget):
             apply.setEnabled(not busy and self.info is not None)
         self.save_button.setEnabled(not busy and self.info is not None)
         self.restore_button.setEnabled(not busy and self.info is not None)
+        self.print_button.setEnabled(not busy and self.info is not None)
         for widget in (
             self.format_preset, self.format_width, self.format_height,
             self.allow_distortion, self.format_anchor,
@@ -1314,7 +939,7 @@ class GeometryWidget(QWidget):
         if not self.current_path:
             return
         selected, _ = QFileDialog.getSaveFileName(
-            self, "Salvar PDF", str(self.pdf_path), "PDF (*.pdf)"
+            self, "Salvar PDF", save_path(self.pdf_path), "PDF (*.pdf)"
         )
         if not selected:
             return
@@ -1390,14 +1015,6 @@ class GeometryWidget(QWidget):
 
     def _preset_names(self):
         return ["PERSONALIZADO", *FIXED_FORMATS, *self._custom_formats()]
-
-    def _add_custom_format(self):
-        dialog = FormatLibraryDialog(self._custom_formats(), self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        formats = dialog.formats_value()
-        self.settings_store.setValue("geometry/custom_formats", json.dumps(formats))
-        self._reload_preset_combos()
 
     def _reload_preset_combos(self):
         current_format = self.format_preset.currentText()

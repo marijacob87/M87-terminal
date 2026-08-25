@@ -26,7 +26,7 @@ QLabel {
 
 QLabel#label {
     color: #8E9198;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 900;
     letter-spacing: 1px;
     margin-top: 4px;
@@ -40,12 +40,12 @@ QLabel#value {
 
 QLabel#previewCaption {
     color: #8E9198;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 QLabel#sectionTitle {
     color: #D0931D;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     letter-spacing: 1.2px;
     margin-bottom: 3px;
@@ -57,7 +57,7 @@ QLabel#warning {
     border-left: 3px solid #D0931D;
     padding: 6px 8px;
     border-radius: 5px;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 QFrame#line {
@@ -462,8 +462,11 @@ class PdfInfoDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
 
-        saved_geometry = self.settings.value(
-            "pdf_info_dialog/geometry"
+        saved_geometry = (
+            self.settings.value("pdf_info_dialog/geometry")
+            if self.settings.value(
+                "general/remember_geometry", True, type=bool
+            ) else None
         )
 
         if saved_geometry:
@@ -472,28 +475,27 @@ class PdfInfoDialog(QDialog):
         self.ensure_window_is_visible()
 
     def closeEvent(self, event):
-        self.settings.setValue(
-            "pdf_info_dialog/geometry",
-            self.saveGeometry(),
-        )
+        self._save_geometry_preference()
 
         super().closeEvent(event)
 
     def accept(self):
-        self.settings.setValue(
-            "pdf_info_dialog/geometry",
-            self.saveGeometry(),
-        )
+        self._save_geometry_preference()
 
         super().accept()
 
     def reject(self):
-        self.settings.setValue(
-            "pdf_info_dialog/geometry",
-            self.saveGeometry(),
-        )
+        self._save_geometry_preference()
 
         super().reject()
+
+    def _save_geometry_preference(self):
+        if self.settings.value(
+            "general/remember_geometry", True, type=bool
+        ):
+            self.settings.setValue(
+                "pdf_info_dialog/geometry", self.saveGeometry()
+            )
 
     def ensure_window_is_visible(self):
         dialog_geometry = self.frameGeometry()

@@ -14,10 +14,17 @@ from PySide6.QtWidgets import (
 from core.page_organizer import (
     PageSpec, page_specs, reorder_pages, rotated, save_pages, split_pages,
 )
+from core.preferences import save_path
+from core.geometry import GeometryError, inspect_geometry
 from ui.tool_design import (
-    TOOL_CARD_MARGINS, TOOL_CARD_SPACING, TOOL_CONTROLS_WIDTH,
-    TOOL_PAGE_MARGINS, TOOL_PAGE_SPACING, TOOL_STANDARD_QSS, set_tool_role,
+    TOOL_CARD_MARGINS, TOOL_CARD_SPACING, TOOL_COLUMN_SPACING, TOOL_CONTROLS_WIDTH,
+    TOOL_PAGE_MARGINS, TOOL_PAGE_SPACING, TOOL_STANDARD_QSS, ToolActionBar,
+    ToolPreviewToolbar,
+    create_pdf_file_card, set_open_pdf_loaded,
+    apply_terminal_accent, draw_empty_pdf_message, format_pdf_file_summary,
+    set_document_control_enabled, set_tool_role, show_button_success,
 )
+from ui.konica_print import spool_pdf
 
 
 class PageList(QListWidget):
@@ -81,6 +88,9 @@ class PageList(QListWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
+        if not self.count():
+            painter = QPainter(self.viewport())
+            draw_empty_pdf_message(painter, self.viewport().rect())
         geometry = self._indicator_geometry()
         if geometry is None:
             return
@@ -137,14 +147,18 @@ class OrganizePagesWidget(QWidget):
         self._icon_cache: dict[PageSpec, QIcon] = {}
         self._work_dir = tempfile.TemporaryDirectory(prefix="m87_org_")
         self._work_generation = 0
+        self._thumbnail_zoom = 1.0
         self._build_ui()
+        apply_terminal_accent(self)
         self.setStyleSheet(TOOL_STANDARD_QSS + self._qss())
         self._update_actions()
 
     def _build_ui(self):
-        root = QHBoxLayout(self)
+        root = QVBoxLayout(self)
         root.setContentsMargins(*TOOL_PAGE_MARGINS)
         root.setSpacing(TOOL_PAGE_SPACING)
+        body = QHBoxLayout()
+        body.setSpacing(TOOL_COLUMN_SPACING)
 
         sidebar = QWidget()
         sidebar.setProperty("toolRole", "controls")
@@ -153,18 +167,9 @@ class OrganizePagesWidget(QWidget):
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(TOOL_PAGE_SPACING)
 
-        heading = QLabel("ORGANIZAR PÁGINAS")
-        heading.setObjectName("orgHeading")
-        sidebar_layout.addWidget(heading)
-
-        file_card, file_layout = self._card("ARQUIVO")
-        self.open_button = self._button("ABRIR PDF", self._choose_pdf, primary=True)
-        self.save_button = self._button("SALVAR COMO", self._save_as, primary=True)
-        file_row = QHBoxLayout()
-        file_row.setSpacing(6)
-        file_row.addWidget(self.open_button)
-        file_row.addWidget(self.save_button)
-        file_layout.addLayout(file_row)
+        file_card, self.open_button, self.file_label = create_pdf_file_card(
+            self._choose_pdf
+        )
         sidebar_layout.addWidget(file_card)
 
         selection_card, selection_layout = self._card("PÁGINAS SELECIONADAS")
@@ -217,12 +222,35 @@ class OrganizePagesWidget(QWidget):
             button.setProperty("orgAction", True)
             document_layout.addWidget(button)
         sidebar_layout.addWidget(document_card)
+        self._document_cards = (
+            selection_card, options_card, document_card,
+        )
         sidebar_layout.addStretch()
-        root.addWidget(sidebar)
+        body.addWidget(sidebar)
 
         workspace = QVBoxLayout()
         workspace.setContentsMargins(0, 0, 0, 0)
         workspace.setSpacing(TOOL_PAGE_SPACING)
+
+        self.preview_toolbar = ToolPreviewToolbar()
+        self.preview_toolbar.previous_button.clicked.connect(
+            lambda: self._change_preview_page(-1)
+        )
+        self.preview_toolbar.next_button.clicked.connect(
+            lambda: self._change_preview_page(1)
+        )
+        self.preview_toolbar.rotation_undo_button.clicked.connect(self._undo_action)
+        self.preview_toolbar.rotate_button.clicked.connect(self._rotate_from_toolbar)
+        self.preview_toolbar.zoom_out_button.clicked.connect(
+            lambda: self._set_thumbnail_zoom(self._thumbnail_zoom - .25)
+        )
+        self.preview_toolbar.zoom_label.clicked.connect(
+            lambda: self._set_thumbnail_zoom(1.0)
+        )
+        self.preview_toolbar.zoom_in_button.clicked.connect(
+            lambda: self._set_thumbnail_zoom(self._thumbnail_zoom + .25)
+        )
+        workspace.addWidget(self.preview_toolbar)
 
         self.pages = PageList()
         self.pages.setViewMode(QListWidget.IconMode)
@@ -245,17 +273,27 @@ class OrganizePagesWidget(QWidget):
         footer = QHBoxLayout()
         self.status = QLabel("ARRASTE UM PDF PARA COMEÇAR")
         self.status.setObjectName("orgStatus")
+        self.status.hide()
         self.sync_status = QLabel("")
         self.sync_status.setObjectName("orgSyncStatus")
         self.hint = QLabel("⌘ clique seleciona várias · Shift seleciona intervalo · arraste para reordenar")
         self.hint.setObjectName("orgHint")
-        footer.addWidget(self.status)
-        footer.addSpacing(12)
         footer.addWidget(self.sync_status)
         footer.addStretch()
         footer.addWidget(self.hint)
         workspace.addLayout(footer)
-        root.addLayout(workspace, 1)
+        body.addLayout(workspace, 1)
+        root.addLayout(body, 1)
+
+        self.action_bar = ToolActionBar(
+            restore=self._restore_original,
+            print_file=self._print_current,
+            save_as=self._save_as,
+        )
+        self.restore_button = self.action_bar.restore_button
+        self.print_button = self.action_bar.print_button
+        self.save_button = self.action_bar.save_button
+        root.addLayout(self.action_bar)
 
     def _card(self, title):
         card = QFrame()
@@ -278,18 +316,18 @@ class OrganizePagesWidget(QWidget):
 
     def _qss(self):
         return """
-        QLabel#orgHeading { color:#FFC400; font-size:10px; font-weight:700; letter-spacing:1px; padding:2px 2px 0 2px; }
-        QListWidget { background:#050607; border:1px solid rgba(255,255,255,.08); border-radius:7px; color:rgba(255,255,255,.78); outline:0; padding:8px; }
+        QLabel#orgHeading { color:#FFC400; font-size:11px; font-weight:700; letter-spacing:1px; padding:2px 2px 0 2px; }
+        QListWidget { background:#050607; border:0; border-radius:0; color:rgba(255,255,255,.78); outline:0; padding:8px; }
         QListWidget::item { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-radius:5px; padding:7px; }
         QListWidget::item:hover { border-color:rgba(255,196,0,.28); background:rgba(255,196,0,.035); }
         QListWidget::item:selected { color:#FFC400; border:1px solid rgba(255,196,0,.65); background:rgba(255,196,0,.10); }
         QPushButton[orgPrimary="true"] { color:#FFC400; border-color:rgba(255,196,0,.40); background:rgba(255,196,0,.08); }
         QPushButton[orgAction="true"] { text-align:left; padding-left:12px; }
-        QLabel#orgStatus { color:#FFC400; font-size:9px; font-weight:700; }
-        QLabel#orgSyncStatus { color:rgba(255,255,255,.45); font-size:8px; font-weight:700; }
+        QLabel#orgStatus { color:#FFC400; font-size:10px; font-weight:700; }
+        QLabel#orgSyncStatus { color:rgba(255,255,255,.45); font-size:9px; font-weight:700; }
         QLabel#orgSyncStatus[syncState="ok"] { color:rgba(106,210,138,.85); }
         QLabel#orgSyncStatus[syncState="error"] { color:rgba(255,110,100,.90); }
-        QLabel#orgHint { color:rgba(255,255,255,.35); font-size:8px; }
+        QLabel#orgHint { color:rgba(255,255,255,.35); font-size:9px; }
         """
 
     def load_pdfs(self, paths):
@@ -305,6 +343,8 @@ class OrganizePagesWidget(QWidget):
         self._redo.clear()
         self._icon_cache.clear()
         self.pages.clear()
+        self.file_label.setText("Nenhum PDF carregado")
+        set_open_pdf_loaded(self.open_button, False)
         self.status.setText("ARRASTE UM PDF PARA COMEÇAR")
         self.sync_status.clear()
         self._work_generation = 0
@@ -320,6 +360,18 @@ class OrganizePagesWidget(QWidget):
             QMessageBox.critical(self, "M87 • ORGANIZAR PÁGINAS", f"Não foi possível abrir o PDF:\n{error}")
             return
         self.current_path = source
+        try:
+            info = inspect_geometry(source)
+            first_trim = info.pages[0].trim
+            self.file_label.setText(format_pdf_file_summary(
+                source.name,
+                first_trim.width_mm,
+                first_trim.height_mm,
+                info.page_count,
+            ))
+        except GeometryError:
+            self.file_label.setText(source.name)
+        set_open_pdf_loaded(self.open_button, True)
         self._pages = specs
         self._icon_cache.clear()
         self._undo.clear()
@@ -387,6 +439,39 @@ class OrganizePagesWidget(QWidget):
     def _snapshot(self):
         self._undo.append(list(self._pages))
         self._redo.clear()
+
+    def _change_preview_page(self, offset):
+        if not self._pages:
+            return
+        row = self.pages.currentRow()
+        if row < 0:
+            row = 0
+        row = max(0, min(len(self._pages) - 1, row + offset))
+        item = self.pages.item(row)
+        self.pages.setCurrentItem(item)
+        item.setSelected(True)
+        self.pages.scrollToItem(item)
+        self._update_actions()
+
+    def _rotate_from_toolbar(self):
+        if not self.pages.selectedItems() and self.pages.count():
+            self.pages.setCurrentRow(max(0, self.pages.currentRow()))
+            self.pages.currentItem().setSelected(True)
+        self._rotate(90)
+
+    def _set_thumbnail_zoom(self, zoom):
+        self._thumbnail_zoom = min(1.75, max(.5, zoom))
+        self.pages.setIconSize(QSize(
+            round(126 * self._thumbnail_zoom),
+            round(166 * self._thumbnail_zoom),
+        ))
+        self.pages.setGridSize(QSize(
+            round(156 * self._thumbnail_zoom),
+            round(205 * self._thumbnail_zoom),
+        ))
+        self.preview_toolbar.zoom_label.setText(
+            f"{round(self._thumbnail_zoom * 100)}%"
+        )
 
     def _selected_rows(self):
         return sorted(self.pages.row(item) for item in self.pages.selectedItems())
@@ -487,7 +572,7 @@ class OrganizePagesWidget(QWidget):
         if not rows or not self.current_path:
             return
         default = str(self.current_path.with_name(f"{self.current_path.stem}_extraido.pdf"))
-        path, _ = QFileDialog.getSaveFileName(self, "Extrair páginas", default, "PDF (*.pdf)")
+        path, _ = QFileDialog.getSaveFileName(self, "Extrair páginas", save_path(default), "PDF (*.pdf)")
         if path:
             self._write([self._pages[row] for row in rows], path, "Páginas extraídas")
 
@@ -509,7 +594,8 @@ class OrganizePagesWidget(QWidget):
             return
         try:
             outputs = split_pages(self.current_path, self._pages, folder, spin.value())
-            QMessageBox.information(self, "M87 • ORGANIZAR PÁGINAS", f"{len(outputs)} PDFs salvos em:\n{folder}")
+            show_button_success(self.split_button, restore_text="DIVIDIR")
+            self.status.setText(f"✓ {len(outputs)} PDFs salvos")
         except Exception as error:
             QMessageBox.critical(self, "M87 • ORGANIZAR PÁGINAS", str(error))
 
@@ -517,14 +603,42 @@ class OrganizePagesWidget(QWidget):
         if not self.current_path:
             return
         default = str(self.current_path.with_name(f"{self.current_path.stem}_organizado.pdf"))
-        path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF organizado", default, "PDF (*.pdf)")
+        path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF organizado", save_path(default), "PDF (*.pdf)")
         if path:
             self._write(self._pages, path, "PDF organizado")
+
+    def _restore_original(self):
+        if self.current_path:
+            self.load_pdf(self.current_path)
+
+    def _print_current(self):
+        if not self.current_path or not self._pages:
+            return
+        temporary = tempfile.TemporaryDirectory(prefix="m87_org_print_")
+        output = Path(temporary.name) / f"{self.current_path.stem}_organizado.pdf"
+        try:
+            save_pages(self.current_path, self._pages, output)
+        except Exception as error:
+            temporary.cleanup()
+            QMessageBox.critical(
+                self, "M87 • ORGANIZAR PÁGINAS",
+                f"Não foi possível preparar o PDF para impressão:\n{error}",
+            )
+            return
+        spool_pdf(
+            self, output, button=self.print_button, cleanup=temporary.cleanup,
+        )
 
     def _write(self, specs, path, title):
         try:
             output = save_pages(self.current_path, specs, path)
-            QMessageBox.information(self, "M87 • ORGANIZAR PÁGINAS", f"{title} salvo em:\n{output}")
+            button = (
+                self.extract_button
+                if title == "Páginas extraídas"
+                else self.save_button
+            )
+            show_button_success(button)
+            self.status.setText(f"✓ {title} salvo: {Path(output).name}")
         except Exception as error:
             QMessageBox.critical(self, "M87 • ORGANIZAR PÁGINAS", f"Não foi possível salvar:\n{error}")
 
@@ -639,7 +753,12 @@ class OrganizePagesWidget(QWidget):
     def _update_actions(self):
         loaded = bool(self.current_path and self._pages)
         selected = bool(self.pages.selectedItems())
-        for button in (self.insert_button, self.split_button, self.save_button):
+        for card in self._document_cards:
+            set_document_control_enabled(card, loaded)
+        for button in (
+            self.insert_button, self.split_button, self.save_button,
+            self.restore_button, self.print_button,
+        ):
             button.setEnabled(loaded)
         for button in (
             self.replace_button, self.extract_button, self.left_button,
@@ -649,3 +768,15 @@ class OrganizePagesWidget(QWidget):
         self.range_edit.setEnabled(loaded)
         self.undo_button.setEnabled(bool(self._undo))
         self.redo_button.setEnabled(bool(self._redo))
+        self.preview_toolbar.set_document_enabled(loaded)
+        row = self.pages.currentRow()
+        if loaded and row < 0:
+            row = 0
+        self.preview_toolbar.page_label.setText(
+            f"Página {row + 1} de {len(self._pages)}" if loaded else "Nenhum PDF"
+        )
+        self.preview_toolbar.previous_button.setEnabled(loaded and row > 0)
+        self.preview_toolbar.next_button.setEnabled(
+            loaded and row + 1 < len(self._pages)
+        )
+        self.preview_toolbar.rotation_undo_button.setEnabled(bool(self._undo))

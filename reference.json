@@ -3,7 +3,7 @@
     "name": "M87 TERMINAL",
     "version": "v2.0.0",
     "created": "03 de julho de 2026",
-    "updated": "31 de julho de 2026"
+    "updated": "05 de agosto de 2026"
   },
   "sections": [
     {
@@ -26,7 +26,7 @@
         {
           "code": "PDF",
           "title": "Arraste um ou vários PDFs para o Terminal.",
-          "description": "Um PDF ativa MONTAR IMPOSIÇÃO, RENOMEAR, INFO, CURVAS e REDUZIR. Dentro do IMP, vários PDFs ativam automaticamente o modo em lote. ESC remove o contexto ativo.",
+          "description": "Um PDF abre diretamente a janela centralizada na primeira aba, RESUMO. Ela cria uma descrição editável para a ordem de trabalho, mostra MediaBox e TrimBox, cores, verificações e miniaturas de todas as páginas com zoom e linhas opcionais dos boxes.",
           "keywords": [
             "arrastar",
             "drag",
@@ -37,21 +37,9 @@
           ]
         },
         {
-          "code": "ZIP",
-          "title": "Arraste um pacote M87_Update para atualizar.",
-          "description": "O Terminal valida o pacote, cria um único backup, substitui os arquivos, move o ZIP instalado para a Lixeira e reinicia automaticamente.",
-          "keywords": [
-            "atualização",
-            "update",
-            "zip",
-            "backup",
-            "reiniciar"
-          ]
-        },
-        {
           "code": "REFERENCE",
           "title": "Documentação integrada do projeto.",
-          "description": "Abra pelo ícone ▤. A busca percorre comandos, ações PDF, atalhos, atualização e recursos de desenvolvedor.",
+          "description": "Abra pelo ícone ▤. A busca percorre comandos, ações PDF, atalhos e recursos de desenvolvedor.",
           "keywords": [
             "reference",
             "documentação",
@@ -233,17 +221,31 @@
               ]
             },
             {
-              "code": "GEO",
-              "title": "Geometria do PDF",
-              "description": "Abre a aba GEO na janela compartilhada de ferramentas, com TrimBox selecionada por padrão ao carregar cada PDF. Permite inspecionar páginas, alterar formato, MediaBox e TrimBox, escolher âncora e remover somente objetos totalmente fora da TrimBox. As marcas de corte pertencem à Imposição. Trabalha com pré-visualização, desfazer e Salvar Como, sem sobrescrever o PDF original.",
+              "code": "NOTAS",
+              "title": "Abrir bloco de notas",
+              "description": "Abre diretamente a seção NOTAS da REFERENCE. É um comando silencioso e não aparece na grade de comandos do Terminal.",
               "keywords": [
-                "geometria",
+                "ideias",
+                "melhorias",
+                "anotações",
+                "reference",
+                "silencioso"
+              ]
+            },
+            {
+              "code": "PDF",
+              "title": "Resumo PDF",
+              "description": "Abre a janela centralizada de PDF diretamente na aba RESUMO. Organizar Páginas, Geometria, Cores e Imposição ficam disponíveis como abas e compartilham o mesmo arquivo.",
+              "keywords": [
                 "pdf",
+                "resumo",
+                "informações",
+                "geometria",
+                "organizar páginas",
+                "imposição",
                 "mediabox",
                 "trimbox",
-                "formato",
-                "marcas de corte",
-                "salvar como"
+                "cores"
               ]
             },
             {
@@ -274,41 +276,6 @@
                 "montagem",
                 "papel",
                 "planos"
-              ]
-            },
-            {
-              "code": "IMP",
-              "title": "Montar Imposição",
-              "description": "Abre o impositor PDF em modo único ou lote, com o mesmo padrão visual em cartões, zoom e navegação da Geometria e a mesma biblioteca compartilhada de formatos de papel. Permite reservar 10 mm adicionais de pinça na margem inferior, configurar offset, comprimento e espessura das marcas de corte, escolher materiais por chips compactos, consultar os planos abaixo da grade e conferir no resumo Trim, papel, sobra e folgas laterais antes de salvar os PDFs no Desktop.",
-              "keywords": [
-                "imposição",
-                "impose",
-                "montagem",
-                "pdf",
-                "trimbox",
-                "bleed",
-                "marcas de corte",
-                "sequencial",
-                "repetir",
-                "lote",
-                "vários PDFs",
-                "quantidade individual",
-                "processar todos"
-              ]
-            },
-            {
-              "code": "ORG",
-              "title": "Organizar Páginas",
-              "description": "Abre a primeira aba da janela compartilhada de ferramentas. Reúne as opções em uma barra lateral no padrão visual do M87 e mostra as miniaturas na área principal. Permite selecionar por faixa, pares, ímpares, retrato ou paisagem; arrastar para reordenar; girar, duplicar, excluir, inserir, substituir e extrair páginas; dividir por quantidade; desfazer, refazer e salvar como sem sobrescrever o PDF original. Cada alteração atualiza automaticamente o PDF de trabalho usado por GEO e IMP.",
-              "keywords": [
-                "organizar páginas",
-                "pdf",
-                "reordenar",
-                "extrair",
-                "dividir",
-                "girar",
-                "substituir",
-                "salvar como"
               ]
             },
             {
@@ -448,7 +415,7 @@
     {
       "id": "pdf",
       "title": "PDF",
-      "intro": "Ações exibidas quando um PDF está ativo.",
+      "intro": "Recursos reunidos na janela centralizada de PDF, aberta diretamente em RESUMO.",
       "items": [
         {
           "code": "MONTAR IMPOSIÇÃO",
@@ -510,6 +477,61 @@
       ]
     },
     {
+      "id": "interface",
+      "title": "INTERFACE",
+      "intro": "Padrão visual e comportamento comum das ferramentas.",
+      "items": [
+        {
+          "code": "ABAS",
+          "title": "Um único fluxo de ferramentas",
+          "description": "A janela centralizada começa por Resumo e reúne Organizar Páginas, Geometria, Cores, Imposição, Criar Imposição, Montagem e EAN-13. As ferramentas de PDF compartilham o arquivo ativo; trocar de aba não exige abri-lo novamente.",
+          "keywords": ["interface", "abas", "fluxo", "pdf compartilhado"]
+        },
+        {
+          "code": "RESUMO",
+          "title": "Resumo para a ordem de trabalho",
+          "description": "Gera automaticamente uma descrição editável com nome do material, cliente, formato e cores. Os botões LIMPAR e COPIAR permitem ajustar e enviar o texto para a ordem de trabalho. A prévia mostra todas as páginas em 75%, com zoom, altura ajustada ao formato e linhas opcionais de MediaBox e TrimBox. Cores aparecem com selo CMYK e amostras visuais para Pantones conhecidos.",
+          "keywords": ["ordem de trabalho", "copiar", "descrição", "miniaturas", "zoom", "mediabox", "trimbox"]
+        },
+        {
+          "code": "ARQUIVO",
+          "title": "Abrir e identificar o PDF",
+          "description": "ORG, GEO e IMP usam o mesmo cartão Arquivo e botão Abrir PDF. Sem documento, o cartão informa “Nenhum PDF carregado”. Com documento, mostra nome, TrimBox e quantidade de páginas.",
+          "keywords": ["arquivo", "abrir pdf", "trimbox", "páginas"]
+        },
+        {
+          "code": "SEM PDF",
+          "title": "Estado inicial seguro",
+          "description": "Antes de carregar um PDF, controles dependentes do documento permanecem desabilitados e em cinza. A prévia de ORG, GEO e IMP mostra a mesma mensagem discreta e centralizada: “Arraste um PDF para visualizar”.",
+          "keywords": ["vazio", "desabilitado", "cinza", "arrastar"]
+        },
+        {
+          "code": "PRÉVIA",
+          "title": "Página, rotação e zoom",
+          "description": "ORG, GEO e IMP usam a mesma barra acima da prévia: página anterior, identificação da página atual, próxima página, rotação à esquerda, rotação de 90°, reduzir zoom, percentual e ampliar zoom.",
+          "keywords": ["prévia", "página", "rotação", "zoom", "toolbar"]
+        },
+        {
+          "code": "RODAPÉ",
+          "title": "Ações sempre no mesmo lugar",
+          "description": "Nas ferramentas de PDF, Restaurar original fica à esquerda; Imprimir e Salvar como ficam à direita. Os botões compartilham tamanho, cor, ícones em outline e alinhamento. Montagem usa apenas Limpar no rodapé.",
+          "keywords": ["rodapé", "restaurar", "imprimir", "salvar como", "limpar"]
+        },
+        {
+          "code": "SELEÇÃO",
+          "title": "Checkboxes e opções",
+          "description": "Checkboxes e radio buttons seguem o padrão compacto inspirado no macOS. A seleção usa o amarelo do Terminal; estados indisponíveis ficam em cinza. “Identificar folhas” inicia desabilitado por padrão.",
+          "keywords": ["checkbox", "radio", "amarelo", "identificar folhas"]
+        },
+        {
+          "code": "IMPRIMIR",
+          "title": "Enviar para o Hold da Konica",
+          "description": "O botão Imprimir envia o PDF resultante ao Hot Folder configurado da Konica AccurioPro. O trabalho entra no Hold para conferência antes da liberação na impressora.",
+          "keywords": ["imprimir", "konica", "accuriopro", "hot folder", "hold"]
+        }
+      ]
+    },
+    {
       "id": "atalhos",
       "title": "ATALHOS",
       "items": [
@@ -536,55 +558,6 @@
             "finder",
             "pdf",
             "command v"
-          ]
-        },
-        {
-          "code": "⌘F16",
-          "title": "Abrir Geometria",
-          "description": "Na janela de ferramentas, muda diretamente para a aba Geometria.",
-          "keywords": [
-            "atalho",
-            "ferramentas",
-            "aba",
-            "geometria",
-            "geo"
-          ]
-        },
-        {
-          "code": "⌘F17",
-          "title": "Abrir Imposição",
-          "description": "Na janela de ferramentas, muda diretamente para a aba Imposição.",
-          "keywords": [
-            "atalho",
-            "ferramentas",
-            "aba",
-            "imposição",
-            "imp"
-          ]
-        },
-        {
-          "code": "⌘F18",
-          "title": "Abrir Montagem",
-          "description": "Na janela de ferramentas, muda diretamente para a aba Montagem.",
-          "keywords": [
-            "atalho",
-            "ferramentas",
-            "aba",
-            "montagem",
-            "mon"
-          ]
-        },
-        {
-          "code": "⌘F19",
-          "title": "Abrir EAN-13",
-          "description": "Na janela de ferramentas, muda diretamente para a aba EAN-13.",
-          "keywords": [
-            "atalho",
-            "ferramentas",
-            "aba",
-            "ean-13",
-            "código de barras",
-            "bar"
           ]
         },
         {
@@ -708,12 +681,12 @@
     {
       "id": "desenvolvedor",
       "title": "DESENVOLVEDOR",
-      "intro": "Estrutura, comandos e fluxo oficial de desenvolvimento e atualização.",
+      "intro": "Estrutura, comandos e fluxo oficial de desenvolvimento.",
       "items": [
         {
           "code": "PADRÃO VISUAL DAS FERRAMENTAS",
           "title": "Composição compartilhada entre as abas",
-          "description": "Geometria, Imposição, Montagem e EAN-13 usam o mesmo sistema visual definido em ui/tool_design.py: fundo #080a0d, coluna de controlos com 400 px, margens 14/12, cartões cinza com borda branca de baixa opacidade, títulos amarelos de 9 px, rótulos de 8 px, campos de 20 px sem contorno amarelo de foco, chips compactos e sugestões multilinha com espaçamento uniforme.",
+          "description": "ORG, GEO, IMP, MON e EAN-13 usam tokens em ui/design_tokens.py e componentes em ui/tool_design.py. O padrão aprovado define fundo #050607, coluna de 400 px, margens 14/12, campos e botões de 26 px, chips de 25 px, barra de prévia de 24 px, botão Abrir PDF de 38 px, ações de rodapé de 136 × 28 px, cartões com raio de 7 px e controles com raio de 4 px. A especificação completa está em docs/VISUAL_SYSTEM.md.",
           "keywords": [
             "interface",
             "layout",
@@ -721,6 +694,7 @@
             "cartões",
             "campos",
             "chips",
+            "organizar",
             "geometria",
             "imposição",
             "montagem",
@@ -730,13 +704,12 @@
         {
           "code": "ESTRUTURA",
           "title": "Pastas principais",
-          "description": "core/ lógica; ui/ interface; scripts/ rotinas auxiliares; backup/ último backup; commands.json comandos visíveis; reference.json conteúdo desta documentação.",
+          "description": "core/ lógica; ui/ interface; scripts/ rotinas auxiliares; commands.json comandos visíveis; reference.json conteúdo desta documentação.",
           "keywords": [
             "estrutura",
             "core",
             "ui",
             "scripts",
-            "backup",
             "commands.json",
             "reference.json"
           ]
@@ -751,17 +724,6 @@
             "commit",
             "push",
             "publicar"
-          ]
-        },
-        {
-          "code": "#zip",
-          "title": "Criar ZIP do projeto",
-          "description": "Gera no Desktop um ZIP limpo e datado para enviar ao ChatGPT.",
-          "keywords": [
-            "zip",
-            "projeto",
-            "desktop",
-            "chatgpt"
           ]
         },
         {
@@ -786,36 +748,13 @@
         },
         {
           "code": "FLUXO",
-          "title": "Desenvolver e enviar",
-          "description": "Alterar, testar, usar #git, usar #zip e enviar o ZIP completo ao ChatGPT com a mudança desejada.",
+          "title": "Desenvolver e publicar",
+          "description": "Alterar, testar e usar #git para publicar as mudanças no repositório.",
           "keywords": [
             "fluxo",
             "desenvolvimento",
-            "upload",
-            "chatgpt",
-            "enviar"
-          ]
-        },
-        {
-          "code": "ATUALIZAR",
-          "title": "Instalar pacote recebido",
-          "description": "Baixe M87_Update_X.X.X.zip, arraste para o M87 e pressione Enter. O Terminal cria backup, substitui os arquivos, remove temporários, move o ZIP para a Lixeira e reinicia.",
-          "keywords": [
-            "atualização",
-            "update",
-            "backup",
-            "lixeira",
-            "reiniciar"
-          ]
-        },
-        {
-          "code": "BACKUP",
-          "title": "Somente o último backup",
-          "description": "backup/ultimo_backup.zip guarda apenas os arquivos substituídos e é renovado a cada atualização.",
-          "keywords": [
-            "backup",
-            "ultimo_backup.zip",
-            "segurança"
+            "git",
+            "publicar"
           ]
         },
         {

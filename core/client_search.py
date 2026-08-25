@@ -325,10 +325,6 @@ def _save_client_search_cache():
         pass
 
 
-def client_search_cache_ready():
-    return _client_cache_loaded
-
-
 def _search_indexed_client_items(query):
     """Consulta o índice Spotlight e mantém apenas letra/cliente/item."""
     if TRABALHOS_PATH != DEFAULT_TRABALHOS_PATH:

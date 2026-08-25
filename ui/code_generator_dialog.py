@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
+import tempfile
 
+import fitz
 from PIL import Image
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QMimeData, QPoint, QRectF, QSettings, Qt, QTimer
@@ -29,8 +31,11 @@ from PySide6.QtWidgets import (
 
 from ui.widgets import DarkMetallicTitleBar
 from ui.tool_design import (
-    TOOL_CONTROLS_WIDTH, TOOL_STANDARD_QSS, set_tool_role,
+    TOOL_BACKGROUND, TOOL_BUTTON_HEIGHT, TOOL_CONTROLS_WIDTH,
+    TOOL_FIELD_HEIGHT, TOOL_STANDARD_QSS, ToolActionBar,
+    apply_terminal_accent, set_tool_role,
 )
+from ui.konica_print import spool_pdf
 
 from core.code_tools import (
     generate_ean13_svg,
@@ -40,27 +45,29 @@ from core.code_tools import (
     normalize_ean13,
     read_codes_from_image,
 )
+from core.preferences import save_path
 
 
 STYLE = f"""
-QWidget {{ font-family: "JetBrains Mono"; font-size: 10px; color: #FFC400; }}
-QWidget#barBox {{ background: rgba(0,0,0,232); border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
+QWidget {{ font-family: "JetBrains Mono"; font-size: 11px; color: #FFC400; }}
+QWidget#barBox {{ background: {TOOL_BACKGROUND}; border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
 QLabel#barWindowTitle {{ color: white; font-size: 10px; letter-spacing: 1px; }}
 QLabel#barClose {{ color: white; font-size: 16px; padding: 0 4px; }}
 QLabel#barClose:hover {{ color: #FFC400; }}
 QLabel {{ color: rgba(255,255,255,.82); }}
-QLabel#sectionTitle {{ color: rgba(255,196,0,.75); font-size: 9px; font-weight: 600; letter-spacing: 1px; padding-top: 6px; border-bottom: 1px solid rgba(255,196,0,.16); }}
-QLabel#muted {{ color: rgba(255,255,255,.45); font-size: 9px; }}
+QLabel#sectionTitle {{ color: rgba(255,196,0,.75); font-size: 10px; font-weight: 600; letter-spacing: 1px; padding-top: 6px; border-bottom: 1px solid rgba(255,196,0,.16); }}
+QLabel#muted {{ color: rgba(255,255,255,.45); font-size: 10px; }}
 QLabel#statusOk {{ color: #70d878; font-weight: 700; }}
 QLabel#statusError {{ color: #FFC400; font-weight: 700; }}
 QLabel#value {{ color: white; font-weight: 700; }}
 QFrame#line {{ background: rgba(255,196,0,.16); max-height: 1px; min-height: 1px; }}
 QFrame#panel {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; }}
-QLineEdit, QTextEdit, QSpinBox, QComboBox {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 0 5px; min-height: 20px; }}
-QPushButton {{ background: rgba(255,255,255,.055); border: 1px solid rgba(255,196,0,.25); border-radius: 6px; padding: 7px 12px; color: rgba(255,196,0,.82); font-weight: 600; }}
+QLineEdit, QSpinBox, QComboBox {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 0 5px; min-height: {TOOL_FIELD_HEIGHT}px; max-height: {TOOL_FIELD_HEIGHT}px; }}
+QTextEdit {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 5px; }}
+QPushButton {{ min-height:{TOOL_BUTTON_HEIGHT}px; background:transparent; border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:0 12px; color:rgba(255,255,255,.66); font-weight:600; }}
 QPushButton:hover {{ color: #fff0a0; border-color: rgba(255,196,0,.55); }}
 QPushButton:pressed {{ background: rgba(255,196,0,.12); }}
-QPushButton#secondary {{ background: transparent; color: rgba(255,196,0,.82); border: 1px solid rgba(255,196,0,.25); }}
+QPushButton#secondary {{ background:transparent; color:rgba(255,255,255,.66); border:1px solid rgba(255,255,255,.12); }}
 QTabWidget::pane {{ border: 1px solid rgba(255,255,255,.08); border-radius: 7px; top: -1px; background: rgba(255,255,255,.015); }}
 QTabBar::tab {{ background: rgba(255,255,255,.025); color: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.08); padding: 7px 20px; min-width: 120px; font-weight: 600; }}
 QTabBar::tab:selected {{ color: #FFC400; border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.065); }}
@@ -73,7 +80,7 @@ class SvgPreview(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(320, 260)
         self.setObjectName("preview")
-        self.setStyleSheet("background:#FFFFFF; border:1px solid rgba(255,196,0,.18); border-radius:8px; color:#555;")
+        self.setStyleSheet("background:#FFFFFF; border:1px solid rgba(255,196,0,.18); border-radius:7px; color:#555;")
         self._svg = b""
         self._max_square = max_square
 
@@ -129,7 +136,7 @@ class ImagePreview(QLabel):
         super().__init__(parent)
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumHeight(230)
-        self.setStyleSheet("background:#FFFFFF; border:1px solid rgba(255,196,0,.18); border-radius:8px; color:#555;")
+        self.setStyleSheet("background:#FFFFFF; border:1px solid rgba(255,196,0,.18); border-radius:7px; color:#555;")
         self._source = QPixmap()
         self.setText("Prévia do código")
 
@@ -184,6 +191,7 @@ class CodeGeneratorDialog(QDialog):
         self.setAcceptDrops(True)
 
         self._build_ui()
+        apply_terminal_accent(self.box)
         self._restore_geometry()
         QShortcut(QKeySequence(Qt.Key_Escape), self, activated=self.close)
 
@@ -235,17 +243,17 @@ class CodeGeneratorDialog(QDialog):
         tabs_wrap.addWidget(self.tabs)
         root.addLayout(tabs_wrap, 1)
 
-        bottom = QHBoxLayout()
-        bottom.setContentsMargins(14, 0, 8, 0)
-        clear_btn = QPushButton("LIMPAR TUDO")
-        clear_btn.setObjectName("secondary")
-        clear_btn.clicked.connect(self.clear_all)
-        close_btn = QPushButton("FECHAR")
-        close_btn.setObjectName("secondary")
-        close_btn.clicked.connect(self.close)
-        bottom.addWidget(clear_btn)
-        bottom.addStretch()
-        bottom.addWidget(close_btn)
+        bottom = ToolActionBar(
+            restore=self.clear_all,
+            print_file=self._print_current,
+            save_as=self._save_current,
+        )
+        bottom.setContentsMargins(14, 0, 14, 0)
+        self.restore_button = bottom.restore_button
+        self.print_button = bottom.print_button
+        self.save_button = bottom.save_button
+        bottom.set_document_enabled(False)
+        self.tabs.currentChanged.connect(self._update_footer_state)
         bottom.addWidget(QSizeGrip(self.box))
         root.addLayout(bottom)
 
@@ -325,12 +333,8 @@ class CodeGeneratorDialog(QDialog):
         copy_svg = QPushButton("COPIAR SVG")
         copy_svg.setObjectName("secondary")
         copy_svg.clicked.connect(lambda: self.copy_svg(self.ean_svg))
-        save_svg = QPushButton("BAIXAR SVG")
-        save_svg.setObjectName("secondary")
-        save_svg.clicked.connect(lambda: self.save_svg(self.ean_svg, "ean13.svg"))
         buttons.addStretch()
         buttons.addWidget(copy_svg)
-        buttons.addWidget(save_svg)
         buttons.addStretch()
         preview_layout.addLayout(buttons)
 
@@ -413,13 +417,9 @@ class CodeGeneratorDialog(QDialog):
         copy_png = QPushButton("COPIAR PNG")
         copy_png.setObjectName("secondary")
         copy_png.clicked.connect(self.copy_qr_png)
-        save_svg = QPushButton("BAIXAR SVG")
-        save_svg.setObjectName("secondary")
-        save_svg.clicked.connect(lambda: self.save_svg(self.qr_svg, "qrcode.svg"))
         buttons.addStretch()
         buttons.addWidget(copy_svg)
         buttons.addWidget(copy_png)
-        buttons.addWidget(save_svg)
         buttons.addStretch()
         preview_layout.addLayout(buttons)
 
@@ -445,7 +445,7 @@ class CodeGeneratorDialog(QDialog):
         )
         self.reader_drop.setAlignment(Qt.AlignCenter)
         self.reader_drop.setMinimumHeight(105)
-        self.reader_drop.setStyleSheet("border:1px dashed #636872; border-radius:8px; color:#BFC2C8;")
+        self.reader_drop.setStyleSheet("border:1px dashed #636872; border-radius:7px; color:#BFC2C8;")
         form.addWidget(self.reader_drop)
 
         source_buttons = QHBoxLayout()
@@ -528,6 +528,7 @@ class CodeGeneratorDialog(QDialog):
             self.ean_status.setText(message)
             self.ean_status.style().unpolish(self.ean_status)
             self.ean_status.style().polish(self.ean_status)
+            self._update_footer_state()
             return
         self.ean_svg = generate_ean13_svg(code)
         self.ean_preview.set_svg(self.ean_svg)
@@ -538,6 +539,7 @@ class CodeGeneratorDialog(QDialog):
         self.ean_status.setText("✓ " + message)
         self.ean_status.style().unpolish(self.ean_status)
         self.ean_status.style().polish(self.ean_status)
+        self._update_footer_state()
 
     def update_qr(self):
         content = self.qr_input.toPlainText().strip()
@@ -548,6 +550,7 @@ class CodeGeneratorDialog(QDialog):
             self.qr_preview.set_svg(b"")
             self.qr_status.setText("Digite um conteúdo.")
             self.qr_status.setObjectName("muted")
+            self._update_footer_state()
             return
         try:
             self.qr_svg = generate_qr_svg(content, self.qr_border.value(), 8, self.qr_error.currentText())
@@ -560,6 +563,48 @@ class CodeGeneratorDialog(QDialog):
             self.qr_status.setObjectName("statusError")
         self.qr_status.style().unpolish(self.qr_status)
         self.qr_status.style().polish(self.qr_status)
+        self._update_footer_state()
+
+    def _current_output(self):
+        if self.tabs.currentIndex() == 0:
+            return self.ean_svg, "ean13.svg"
+        if self.tabs.currentIndex() == 1:
+            return self.qr_svg, "qrcode.svg"
+        return b"", ""
+
+    def _update_footer_state(self, *_args):
+        if not hasattr(self, "save_button"):
+            return
+        data, _name = self._current_output()
+        enabled = bool(data)
+        self.restore_button.setEnabled(bool(
+            self.ean_input.text() or self.qr_input.toPlainText() or self.reader_image
+        ))
+        self.print_button.setEnabled(enabled)
+        self.save_button.setEnabled(enabled)
+
+    def _save_current(self):
+        data, name = self._current_output()
+        self.save_svg(data, name)
+
+    def _print_current(self):
+        data, name = self._current_output()
+        if not data:
+            return
+        temporary = tempfile.TemporaryDirectory(prefix="m87_code_print_")
+        output = Path(temporary.name) / f"{Path(name).stem}.pdf"
+        try:
+            with fitz.open(stream=data, filetype="svg") as svg_document:
+                output.write_bytes(svg_document.convert_to_pdf())
+        except Exception as error:
+            temporary.cleanup()
+            status = self.ean_status if self.tabs.currentIndex() == 0 else self.qr_status
+            status.setText(f"Não foi possível preparar o PDF: {error}")
+            status.setObjectName("statusError")
+            return
+        spool_pdf(
+            self, output, button=self.print_button, cleanup=temporary.cleanup,
+        )
 
     def copy_svg(self, data: bytes):
         if not data:
@@ -579,7 +624,7 @@ class CodeGeneratorDialog(QDialog):
     def save_svg(self, data: bytes, default_name: str):
         if not data:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Salvar SVG", str(Path.home() / "Desktop" / default_name), "SVG (*.svg)")
+        path, _ = QFileDialog.getSaveFileName(self, "Salvar SVG", save_path(Path.home() / "Desktop" / default_name), "SVG (*.svg)")
         if path:
             if not path.lower().endswith(".svg"):
                 path += ".svg"
@@ -681,6 +726,7 @@ class CodeGeneratorDialog(QDialog):
         self.reader_type.setText("—")
         self.reader_value.clear()
         self.reader_valid.setText("—")
+        self._update_footer_state()
 
     def keyPressEvent(self, event):
         if self.tabs.currentIndex() == 2 and event.matches(QKeySequence.Paste):

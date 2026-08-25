@@ -1,5 +1,4 @@
 import os
-import sys
 
 from core.anydesk import (
     get_anydesk_suggestions,
@@ -11,15 +10,18 @@ from core.app_tracker import restart_app
 from core.client_search import open_path
 from core.running_apps import close_running_application
 from core.recent_folders import get_recent_folders
+from core.restart import restart_m87_process
 from core.config import BREAKPOINT_WIDTH
 from core.executor import execute
 from core.system_actions import get_last_kill_report
 from core.input_handler import handle_input_text
 from core.suggestion_engine import get_suggestions
+from ui.command_workflows import CommandWorkflowMixin
 from ui.constants import PDF_ACTIONS
+from PySide6.QtWidgets import QApplication
 
 
-class CommandControllerMixin:
+class CommandControllerMixin(CommandWorkflowMixin):
     def _clear_input_silently(self):
         """
         Limpa o QLineEdit interno sem disparar textChanged.
@@ -108,10 +110,49 @@ class CommandControllerMixin:
         )
 
     def move_suggestion_up(self):
-        self.suggestions.move_up()
+        if self.suggestions.items:
+            self._clear_command_navigation()
+            self.suggestions.move_up()
+            return
+        self._move_command_navigation(-1)
 
     def move_suggestion_down(self):
-        self.suggestions.move_down()
+        if self.suggestions.items:
+            self._clear_command_navigation()
+            self.suggestions.move_down()
+            return
+        self._move_command_navigation(1)
+
+    def _clear_command_navigation(self):
+        index = getattr(self, "command_navigation_index", -1)
+        if 0 <= index < len(self.command_widgets):
+            self.command_widgets[index].set_normal_style()
+        self.command_navigation_index = -1
+
+    def _move_command_navigation(self, direction):
+        """Seleciona os comandos visíveis na grade acima do prompt."""
+        if (
+            self.input.text().strip()
+            or self.current_pdf
+            or getattr(self, "anydesk_menu_active", False)
+            or not self.command_widgets
+        ):
+            return
+
+        if self.suggestions.items:
+            self.clear_suggestions()
+
+        previous = getattr(self, "command_navigation_index", -1)
+        if 0 <= previous < len(self.command_widgets):
+            self.command_widgets[previous].set_normal_style()
+
+        if previous < 0:
+            index = 0 if direction > 0 else len(self.command_widgets) - 1
+        else:
+            index = (previous + direction) % len(self.command_widgets)
+
+        self.command_navigation_index = index
+        self.command_widgets[index].set_keyboard_selected_style()
 
     def execute_selected_suggestion(self):
         selected = self.suggestions.selected_item()
@@ -130,10 +171,6 @@ class CommandControllerMixin:
 
             if selected_type == "pdf_action":
                 self.execute_pdf_action(selected)
-                return True
-
-            if selected_type == "update_action":
-                self.install_pending_update()
                 return True
 
             if selected_type == "application":
@@ -183,181 +220,14 @@ class CommandControllerMixin:
         open_path(selected)
         return True
 
-    def _show_routine_progress(self):
-        lines = []
-
-        for step in getattr(self, "morning_steps", []):
-            status = self.morning_step_status.get(step, "…")
-            lines.append(f"▸ {step:<14} {status}")
-
-        self.session_result_label.setText("\n".join(lines))
-        self.session_result_label.show()
-        self.ajustar_altura_ao_conteudo()
-
-    def _update_morning_step(self, label, ok):
-        self.morning_step_status[label] = "✓" if ok else "⚠"
-        self._show_routine_progress()
-
-    def _finish_morning_routine(self, elapsed):
-        from PySide6.QtCore import QTimer
-
-        elapsed_text = f"{elapsed:.1f}".replace(".", ",")
-        self.session_result_label.setText(
-            "✓ Tudo pronto! Tenha um ótimo dia, Mari!\n"
-            f"Ready in {elapsed_text} s"
-        )
-        self.session_result_label.show()
-        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-        QTimer.singleShot(12000, self.clear_session_result)
-
-        self.morning_worker = None
-
-    def _start_morning_routine(self):
-        from core.morning_routine import MorningRoutineWorker, STEPS
-
-        if getattr(self, "morning_worker", None):
-            return
-
-        self.morning_steps = list(STEPS)
-        self.morning_step_status = {
-            step: "…" for step in self.morning_steps
-        }
-        self._show_routine_progress()
-
-        self.morning_worker = MorningRoutineWorker(self)
-        self.morning_worker.progress.connect(self._update_morning_step)
-        self.morning_worker.completed.connect(self._finish_morning_routine)
-        self.morning_worker.start()
-        self.input.setFocus()
-
-    def _finish_mount_volumes(self, ok, elapsed):
-        from PySide6.QtCore import QTimer
-
-        elapsed_text = f"{elapsed:.1f}".replace(".", ",")
-        symbol = "✓" if ok else "⚠"
-        label = getattr(self, "_mount_label", "Unidades")
-        self.session_result_label.setText(
-            f"{symbol} Verificação concluída: {label} ({elapsed_text} s)"
-        )
-        self.session_result_label.show()
-        QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-        QTimer.singleShot(7000, self.clear_session_result)
-        self.mount_worker = None
-        self.update_status()
-
-    def _start_mount_volumes(self, target=None):
-        from core.morning_routine import MountVolumesWorker
-        from core.network_volumes import select_network_volumes
-
-        if getattr(self, "mount_worker", None):
-            return
-
-        volumes = select_network_volumes(target)
-        if not volumes:
-            from PySide6.QtCore import QTimer
-
-            self.session_result_label.setText(
-                "⚠ Unidade desconhecida. Use MU MIM, MU PFI ou MU NAS."
-            )
-            self.session_result_label.show()
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-            QTimer.singleShot(7000, self.clear_session_result)
-            return
-
-        label = "unidades" if len(volumes) > 1 else volumes[0]["label"]
-        self._mount_label = "Unidades" if len(volumes) > 1 else label
-        self.session_result_label.setText(f"▸ Montando {label}…")
-        self.session_result_label.show()
-        self.ajustar_altura_ao_conteudo()
-
-        self.mount_worker = MountVolumesWorker(target, self)
-        self.mount_worker.completed.connect(self._finish_mount_volumes)
-        self.mount_worker.start()
-
-    def start_whatsapp_download(self, request):
-        from PySide6.QtCore import QTimer
-        from core.whatsapp_worker import WhatsAppDownloadWorker
-
-        worker = getattr(self, "whatsapp_worker", None)
-        if worker is not None and worker.isRunning():
-            self.session_result_label.setText("⚠ Já existe um download do WhatsApp em curso")
-            self.session_result_label.show()
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-            return
-
-        def show_progress(message):
-            self.session_result_label.setText(f"▸ {message}")
-            self.session_result_label.show()
-            self.ajustar_altura_ao_conteudo()
-
-        def completed(count, directory):
-            label = "arquivo" if count == 1 else "arquivos"
-            self.session_result_label.setText(
-                f"✓ WhatsApp • {count}/{count} {label} "
-                f"recebidos e verificados\n{directory}"
-            )
-            self.session_result_label.show()
-            self.whatsapp_worker = None
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-            QTimer.singleShot(12000, self.clear_session_result)
-
-        def failed(message):
-            self.session_result_label.setText(f"⚠ WhatsApp\n{message}")
-            self.session_result_label.show()
-            self.whatsapp_worker = None
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-            QTimer.singleShot(12000, self.clear_session_result)
-
-        self.whatsapp_worker = WhatsAppDownloadWorker(request, self)
-        self.whatsapp_worker.progress.connect(show_progress)
-        self.whatsapp_worker.completed.connect(completed)
-        self.whatsapp_worker.failed.connect(failed)
-        show_progress("A preparar o WhatsApp Web…")
-        self.whatsapp_worker.start()
-
-    def start_whatsapp_contacts(self, requested_day=None):
-        from datetime import date
-        from PySide6.QtCore import QTimer
-        from core.whatsapp_worker import WhatsAppChatsWorker
-
-        self.whatsapp_request_day = requested_day or date.today()
-        worker = getattr(self, "whatsapp_chats_worker", None)
-        if worker is not None and worker.isRunning():
-            return
-
-        def show_progress(message):
-            self.session_result_label.setText(f"▸ {message}")
-            self.session_result_label.show()
-            self.ajustar_altura_ao_conteudo()
-
-        def completed(chats):
-            items = [
-                {"type": "whatsapp_contact", "name": name}
-                for name in chats
-            ]
-            self.whatsapp_chats_worker = None
-            self.session_result_label.clear()
-            self.session_result_label.hide()
-            self.suggestions.set_items(items, limit=20)
-            self.input.setFocus()
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-
-        def failed(message):
-            self.whatsapp_chats_worker = None
-            self.session_result_label.setText(f"⚠ WhatsApp\n{message}")
-            self.session_result_label.show()
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-            QTimer.singleShot(12000, self.clear_session_result)
-
-        self.whatsapp_chats_worker = WhatsAppChatsWorker(self)
-        self.whatsapp_chats_worker.progress.connect(show_progress)
-        self.whatsapp_chats_worker.completed.connect(completed)
-        self.whatsapp_chats_worker.failed.connect(failed)
-        show_progress("A preparar as conversas do WhatsApp…")
-        self.whatsapp_chats_worker.start()
-
     def execute_command(self, code):
         code = code.upper()
+
+        if code == "NOTAS":
+            self._clear_input_silently()
+            self.clear_suggestions()
+            self.open_settings_section("notes")
+            return
 
         if code == "MR":
             self._start_morning_routine()
@@ -439,15 +309,9 @@ class CommandControllerMixin:
             QTimer.singleShot(6000, self.clear_session_result)
             return
 
-        if code in {"IMP", "ORG", "GEO", "MON", "BAR"}:
-            from ui.tools_dialog import ToolsDialog
-
-            dialog = getattr(self, "tools_dialog", None)
-            if dialog is None:
-                dialog = ToolsDialog(self, initial_tab=code)
-                self.tools_dialog = dialog
-            else:
-                dialog.open_tab(code)
+        if code in {"PDF", "IMP", "ORG", "GEO", "MON", "BAR"}:
+            target_tab = "RES" if code == "PDF" else code
+            self._open_tools_dialog(target_tab)
             self.input.setFocus()
             return
 
@@ -518,11 +382,33 @@ class CommandControllerMixin:
         text = self.input.text().strip()
         upper_text = text.upper()
 
-        if getattr(self, "current_update", None):
-            if self.execute_selected_suggestion():
-                return
-            self.install_pending_update()
+        # Comando de controle: precisa ser tratado antes de qualquer sugestão
+        # (inclusive a busca de aplicativos iniciada por "#").
+        if text == "##":
+            self._clear_command_navigation()
+            self._clear_input_silently()
+            self.clear_suggestions()
+            self.restart_app()
             return
+
+        if upper_text == "NOTAS":
+            self._clear_command_navigation()
+            self.execute_command("NOTAS")
+            return
+
+        command_index = getattr(self, "command_navigation_index", -1)
+        if (
+            not text
+            and command_index >= 0
+            and not self.current_pdf
+        ):
+            code = self.command_widgets[command_index].code_text
+            self._clear_command_navigation()
+            self.execute_command(code)
+            return
+
+        if text:
+            self._clear_command_navigation()
 
         if self.current_pdf:
             pdf_action = next(
@@ -582,65 +468,14 @@ class CommandControllerMixin:
 
         handle_input_text(self, text)
 
-    def install_pending_update(self):
-        package = getattr(self, "current_update", None)
-        if package is None:
-            return
-
-        from PySide6.QtCore import QTimer
-        from PySide6.QtWidgets import QApplication
-        from core.update_manager import UpdateError, install_update
-
-        self._clear_input_silently()
-        self.clear_suggestions()
-        progress_lines = []
-
-        def show_progress(message):
-            progress_lines.append(message)
-            # Mantém a tela compacta durante pacotes maiores.
-            visible = progress_lines[-9:]
-            self.session_result_label.setText("\n".join(visible))
-            self.session_result_label.show()
-            self.ajustar_altura_ao_conteudo()
-            QApplication.processEvents()
-
-        try:
-            installed = install_update(package, progress=show_progress)
-        except UpdateError as error:
-            self.session_result_label.setText(
-                f"⚠ Atualização cancelada\n{error}"
-            )
-            self.session_result_label.show()
-            self.current_update = None
-            QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
-            QTimer.singleShot(10000, self.clear_session_result)
-            self.input.setFocus()
-            return
-
-        self.current_update = None
-        self.active_file_label.clear()
-        self.active_file_label.hide()
-        self.session_result_label.setText(
-            f"✓ Atualização concluída\n"
-            f"{installed} arquivos atualizados\n\n"
-            f"Reiniciando..."
-        )
-        self.session_result_label.show()
-        self.ajustar_altura_ao_conteudo()
-        QApplication.processEvents()
-
-        if package.restart:
-            QTimer.singleShot(900, self.restart_app)
-        else:
-            QTimer.singleShot(8000, self.clear_session_result)
-
     def restart_app(self):
         self.save_current_state()
-
-        os.execv(
-            sys.executable,
-            [sys.executable] + sys.argv,
-        )
+        self._force_close = True
+        restart_m87_process()
+        app = QApplication.instance()
+        app.closeAllWindows()
+        app.processEvents()
+        os._exit(0)
 
     def rebuild_command_grid(self):
         columns = (

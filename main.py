@@ -8,8 +8,6 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from core.config import FONT_FAMILY
-
-
 def configure_qt_plugins():
     plugins_path = QLibraryInfo.path(
         QLibraryInfo.LibraryPath.PluginsPath

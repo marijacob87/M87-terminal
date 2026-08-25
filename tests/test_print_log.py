@@ -38,10 +38,25 @@ class PrintLogTests(unittest.TestCase):
 
     def test_parses_multi_artwork_imposition_name(self):
         data = parse_production_name(
+            "250un 10p_Mat150g_Compra TicketLine_17082026.pdf"
+        )
+        self.assertIsNotNone(data)
+        self.assertEqual((data.units, data.plans), (250, 10))
+
+    def test_parses_legacy_multi_artwork_imposition_name(self):
+        data = parse_production_name(
             "10un cada_20pl_Mat350g_Compra TicketLine_02082026.pdf"
         )
         self.assertIsNotNone(data)
         self.assertEqual((data.units, data.plans), (10, 20))
+
+    def test_two_page_imposition_registers_ten_front_and_ten_back(self):
+        entry = make_entry(
+            "250un 10p_Mat150g_Cartão Loja Covilhã_17082026.pdf",
+            2,
+            plans=10,
+        )
+        self.assertEqual((entry.front, entry.back), (10, 10))
 
     def test_parses_legacy_renamed_file(self):
         data = parse_production_name(
@@ -55,6 +70,7 @@ class PrintLogTests(unittest.TestCase):
         self.assertEqual(clean_record_name("# Trabalho.pdf"), "Trabalho")
 
     def test_extracts_short_and_long_plan_formats(self):
+        self.assertEqual(extract_plans("100un 5p_Cliente.pdf"), 5)
         self.assertEqual(extract_plans("100un 5pl_Cliente.pdf"), 5)
         self.assertEqual(extract_plans("# Cliente - 100un 8Planos Papel.pdf"), 8)
 

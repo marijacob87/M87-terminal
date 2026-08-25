@@ -17,7 +17,9 @@ from core.imposition import (
     calculate_layouts,
     calculate_plans,
     export_imposition,
+    export_manual_imposition,
     inspect_pdf,
+    transform_duplex_back_slots,
 )
 from core.pdf_info import analisar_pdf
 from core.pdf_preservation import PdfPreservationError
@@ -233,15 +235,62 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(calculate_plans("repeat", 10, 4, 101), 26)
         self.assertEqual(calculate_plans("sequential", 10, 4, 3), 9)
 
-    def test_multi_artwork_production_text_uses_total_plans(self):
+    def test_duplex_long_edge_mirrors_columns_on_portrait_paper(self):
+        self.assertEqual(
+            transform_duplex_back_slots(
+                [2, 4, 6, 8, 10, 12], 2, 3, 330, 480, True
+            ),
+            [6, 4, 2, 12, 10, 8],
+        )
+
+    def test_duplex_short_edge_mirrors_rows_on_portrait_paper(self):
+        self.assertEqual(
+            transform_duplex_back_slots(
+                [2, 4, 6, 8, 10, 12], 2, 3, 330, 480, False
+            ),
+            [8, 10, 12, 2, 4, 6],
+        )
+
+    def test_manual_duplex_export_accepts_rotations_and_empty_slots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf", page_count=4)
+            output = root / "manual.pdf"
+            layout = build_custom_layout(330, 480, 100, 50, 5, 5, 2, 2, False)
+            summary = export_manual_imposition(
+                source, output, layout, 5,
+                [0, 2, None, None], [1, 3, None, None],
+                front_rotations=[0, 90, 0, 0],
+                back_rotations=[180, 270, 0, 0],
+            )
+            document = fitz.open(output)
+            try:
+                self.assertEqual(document.page_count, 2)
+                self.assertEqual(summary.imposed_pages, 2)
+            finally:
+                document.close()
+
+    def test_manual_export_rejects_page_outside_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf", page_count=2)
+            layout = build_custom_layout(330, 480, 100, 50, 5, 5, 1, 1, False)
+            with self.assertRaisesRegex(ImpositionError, "não existe"):
+                export_manual_imposition(
+                    source, root / "invalid.pdf", layout, 5, [2]
+                )
+
+    def test_multi_artwork_production_text_uses_plans_per_page(self):
         name = automatic_filename(
-            "Compra TicketLine.pdf", 10, 20, "Mat350g", each_artwork=True
+            "Compra TicketLine.pdf", 250, 10, "Mat150g", each_artwork=True
         )
         label = automatic_sheet_label(
-            "Compra TicketLine.pdf", 10, 20, "Mat350g", each_artwork=True
+            "Compra TicketLine.pdf", 250, 10, "Mat150g", each_artwork=True
         )
-        self.assertTrue(name.startswith("10un cada_20pl_Mat350g_"))
-        self.assertIn("10un cada arte • 20 Planos", label)
+        self.assertTrue(name.startswith("250un 10p_Mat150g_"))
+        self.assertIn("250un 10 Planos", label)
+        self.assertNotIn("cada", name)
+        self.assertNotIn("cada", label)
 
     def test_asymmetric_bleed_rotates_clockwise(self):
         trim = fitz.Rect(10, 20, 110, 70)

@@ -1,7 +1,11 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from core.network_volumes import get_network_status, select_network_volumes
+from core.network_volumes import (
+    _mount_responds,
+    get_network_status,
+    select_network_volumes,
+)
 
 
 class NetworkVolumeTests(unittest.TestCase):
@@ -45,6 +49,20 @@ class NetworkVolumeTests(unittest.TestCase):
 
         self.assertEqual(status, {"MIM": False, "PFI": False, "NAS": True})
         mount_responds.assert_called_once_with("/Volumes/Trabalhos", 1.2)
+
+    @patch("core.network_volumes.subprocess.run")
+    def test_access_check_reads_directory_instead_of_only_cached_metadata(
+        self,
+        run,
+    ):
+        run.return_value = Mock(returncode=0)
+
+        self.assertTrue(_mount_responds("/Volumes/Trabalhos", 1.2))
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "/usr/bin/find")
+        self.assertEqual(command[1], "/Volumes/Trabalhos")
+        self.assertIn("-quit", command)
 
 
 if __name__ == "__main__":

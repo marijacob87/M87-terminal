@@ -188,7 +188,3 @@ def read_codes_from_image(image: Image.Image) -> list[dict[str, str]]:
             "valid": "Sim" if item.valid else "Não",
         })
     return results
-
-
-def read_codes(path: str | Path) -> list[dict[str, str]]:
-    return read_codes_from_image(load_image_for_reader(path))

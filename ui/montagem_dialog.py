@@ -20,8 +20,9 @@ from PySide6.QtWidgets import (
 
 from core.montagem_calculator import obter_opcoes
 from ui.tool_design import (
-    TOOL_CONTROLS_WIDTH, TOOL_STANDARD_QSS,
-    configure_measure_swap, set_tool_role,
+    TOOL_BACKGROUND, TOOL_BUTTON_HEIGHT, TOOL_CONTROLS_WIDTH,
+    TOOL_FIELD_HEIGHT, TOOL_STANDARD_QSS, ToolActionBar,
+    apply_terminal_accent, configure_measure_swap, set_tool_role,
 )
 from ui.widgets import DarkMetallicTitleBar
 
@@ -31,8 +32,8 @@ YELLOW = "#FFC400"
 
 
 DIALOG_STYLE = f"""
-QWidget {{ font-family: "JetBrains Mono"; font-size: 10px; }}
-QWidget#monBox, QWidget#monContent, QWidget#monControls {{ background: #080a0d; }}
+QWidget {{ font-family: "JetBrains Mono"; font-size: 11px; }}
+QWidget#monBox, QWidget#monContent, QWidget#monControls {{ background: {TOOL_BACKGROUND}; }}
 QWidget#monBox {{ border: 1px solid rgba(255,196,0,.20); border-radius: 13px; }}
 QWidget#monBox[embedded="true"] {{ border-radius: 0; }}
 QLabel#monWindowTitle {{ color: white; font-size: 10px; letter-spacing: 1px; }}
@@ -40,23 +41,20 @@ QLabel#monClose {{ color: white; font-size: 16px; padding: 0 4px; }}
 QLabel#monClose:hover {{ color: {YELLOW}; }}
 QLabel {{ color: rgba(255,255,255,.66); }}
 QFrame#monCard, QFrame#resultCard {{ background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; }}
-QLabel#monCardTitle, QLabel#sectionTitle {{ color: {YELLOW}; font-size: 9px; font-weight: 700; letter-spacing: .7px; }}
-QLabel#fieldLabel {{ color: rgba(255,255,255,.43); font-size: 8px; }}
-QLabel#resultTitle {{ color: rgba(255,196,0,.78); font-size: 9px; font-weight: 700; letter-spacing: .7px; }}
+QLabel#monCardTitle, QLabel#sectionTitle {{ color: {YELLOW}; font-size: 10px; font-weight: 700; letter-spacing: .7px; }}
+QLabel#fieldLabel {{ color: rgba(255,255,255,.43); font-size: 9px; }}
+QLabel#resultTitle {{ color: rgba(255,196,0,.78); font-size: 10px; font-weight: 700; letter-spacing: .7px; }}
 QLabel#resultMain {{ color: rgba(255,255,255,.92); font-size: 16px; font-weight: 700; }}
-QLabel#resultMeta {{ color: rgba(255,255,255,.52); font-size: 9px; }}
-QLabel#warning {{ color: rgba(255,205,205,.76); background: rgba(145,35,35,.16); border: 1px solid rgba(255,85,85,.42); border-radius: 5px; padding: 5px 7px; font-size: 8px; }}
+QLabel#resultMeta {{ color: rgba(255,255,255,.52); font-size: 10px; }}
+QLabel#warning {{ color: rgba(255,205,205,.76); background: rgba(145,35,35,.16); border: 1px solid rgba(255,85,85,.42); border-radius: 5px; padding: 5px 7px; font-size: 9px; }}
 QFrame#resultCard[selected="true"] {{ background: rgba(255,255,255,.065); border: 1px solid rgba(255,255,255,.12); }}
-QDoubleSpinBox, QSpinBox {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 3px 5px; min-height: 20px; }}
-QCheckBox {{ color: rgba(255,255,255,.78); spacing: 6px; }}
-QCheckBox::indicator {{ width: 13px; height: 13px; border: 1px solid rgba(255,255,255,.22); border-radius: 3px; background: rgba(255,255,255,.05); }}
-QCheckBox::indicator:checked {{ background: {YELLOW}; border-color: {YELLOW}; }}
-QPushButton {{ min-height: 20px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 3px 10px; color: rgba(255,255,255,.66); }}
+QDoubleSpinBox, QSpinBox {{ background: rgba(255,255,255,.07); color: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 4px; padding: 0 5px; min-height: {TOOL_FIELD_HEIGHT}px; max-height: {TOOL_FIELD_HEIGHT}px; }}
+QPushButton {{ min-height: {TOOL_BUTTON_HEIGHT}px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 4px; padding: 0 10px; color: rgba(255,255,255,.66); }}
 QPushButton:hover {{ color: #fff0a0; border-color: rgba(255,196,0,.55); }}
 QPushButton:pressed {{ background: rgba(255,196,0,.12); }}
 QPushButton#primaryButton {{ color: {YELLOW}; font-weight: 700; border: 1px solid rgba(255,196,0,.35); background: rgba(255,196,0,.08); }}
 QPushButton#secondaryButton {{ color: rgba(255,255,255,.66); border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); }}
-QWidget#monPreview {{ border: 1px solid rgba(255,196,0,.18); border-radius: 7px; background: #080a0d; }}
+QWidget#monPreview {{ border: 1px solid rgba(255,196,0,.18); border-radius: 7px; background: {TOOL_BACKGROUND}; }}
 """ + TOOL_STANDARD_QSS
 
 
@@ -80,7 +78,7 @@ class MontagemPreview(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.fillRect(self.rect(), QColor("#080a0d"))
+        painter.fillRect(self.rect(), QColor(TOOL_BACKGROUND))
 
         if not self.resultado or self.papel_l <= 0 or self.papel_a <= 0:
             painter.setPen(QColor("#8E9198"))
@@ -211,6 +209,7 @@ class MontagemDialog(QDialog):
             self.setWindowIcon(QIcon(str(icon)))
         self.setStyleSheet(DIALOG_STYLE)
         self.build_ui()
+        apply_terminal_accent(self.box)
         self.connect_signals()
         self.recalculate()
 
@@ -385,21 +384,8 @@ class MontagemDialog(QDialog):
         return wrapper
 
     def build_buttons(self):
-        layout = QHBoxLayout()
+        layout = ToolActionBar(clear=self.clear_fields)
         layout.setContentsMargins(14, 0, 14, 0)
-
-        clear_button = QPushButton("LIMPAR")
-        clear_button.setObjectName("secondaryButton")
-        clear_button.clicked.connect(self.clear_fields)
-
-        close_button = QPushButton("OK")
-        close_button.setObjectName("primaryButton")
-        close_button.setFixedWidth(62)
-        close_button.clicked.connect(self.accept)
-
-        layout.addWidget(clear_button)
-        layout.addStretch()
-        layout.addWidget(close_button)
         return layout
 
     def _separator(self):

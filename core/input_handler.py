@@ -14,7 +14,6 @@ from core.client_search import (
     search_fast_client,
 )
 from core.developer_tools import publish_git_update
-from core.project_zip import create_project_zip
 from core.running_apps import close_running_application, search_running_applications
 
 
@@ -80,7 +79,7 @@ def handle_input_text(app, text):
 
     # =========================
     # #git mensagem = add, commit e push
-    # Ex: #git inclui comando de backup
+    # Ex: #git ajusta comando principal
     # =========================
 
     if text.lower() == "#git" or text.lower().startswith("#git "):
@@ -93,11 +92,11 @@ def handle_input_text(app, text):
         if not commit_message:
             show_temporary_placeholder(
                 app.input,
-                "escreva a atualização depois de #git"
+                "escreva a alteração depois de #git"
             )
             return
 
-        app.session_result_label.setText("↑ Enviando atualização para o GitHub...")
+        app.session_result_label.setText("↑ Enviando alterações para o GitHub...")
         app.session_result_label.show()
         QApplication.processEvents()
 
@@ -109,48 +108,13 @@ def handle_input_text(app, text):
         return
 
     # =========================
-    # #zip = cria uma cópia limpa do projeto no Desktop
-    # =========================
-
-    if text.lower() == "#zip":
-        from PySide6.QtWidgets import QApplication
-
-        app.input.clear()
-        app.clear_suggestions()
-        app.session_result_label.setText("📦 Criando ZIP do projeto...")
-        app.session_result_label.show()
-        QApplication.processEvents()
-
-        try:
-            zip_path = create_project_zip()
-            app.session_result_label.setText(
-                "✓ ZIP criado no Desktop\n"
-                f"{zip_path.name}"
-            )
-        except Exception as error:
-            app.session_result_label.setText(
-                "Não foi possível criar o ZIP.\n"
-                f"{error}"
-            )
-
-        QTimer.singleShot(0, app.ajustar_altura_ao_conteudo)
-        QTimer.singleShot(8000, app.clear_session_result)
-        return
-
-
-    # =========================
     # ## = reinicia o M87 Terminal
     # =========================
 
     if text == "##":
-        from PySide6.QtCore import QProcess
-        import sys
-
         app.input.clear()
         app.clear_suggestions()
-
-        QProcess.startDetached(sys.executable, sys.argv)
-        app.close()
+        app.restart_app()
         return
 
     # =========================

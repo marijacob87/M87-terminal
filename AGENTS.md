@@ -110,14 +110,6 @@ Evitar:
 
 Sempre reutilizar resultados quando possível.
 
-## Atualizações
-
-O sistema de atualização utiliza `update.json` e uma lista de arquivos.
-
-Nunca alterar o formato do update.
-
-Sempre manter compatibilidade.
-
 ## Segurança
 
 Nunca apagar arquivos automaticamente sem confirmação.

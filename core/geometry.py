@@ -453,7 +453,8 @@ def _remove_objects_outside_trim(pdf, indexes: tuple[int, ...]) -> None:
         instructions = pikepdf.parse_content_stream(page)
         output = []
         buffered = []
-        points = []
+        subpath_points = []
+        current_subpath = -1
         current_matrix = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
         matrix_stack = []
         has_clip = False
@@ -472,32 +473,44 @@ def _remove_objects_outside_trim(pdf, indexes: tuple[int, ...]) -> None:
                 current_matrix = _matrix_multiply(current_matrix, matrix)
 
             if operator in path_operators:
-                buffered.append(instruction)
-                points.extend(
+                if operator in {"m", "re"} or current_subpath < 0:
+                    subpath_points.append([])
+                    current_subpath = len(subpath_points) - 1
+                buffered.append((instruction, current_subpath))
+                subpath_points[current_subpath].extend(
                     _transform_xy(current_matrix, x, y)
                     for x, y in _path_points(operator, operands)
                 )
                 continue
             if buffered:
-                buffered.append(instruction)
+                buffered.append((instruction, None))
                 if operator in {"W", "W*"}:
                     has_clip = True
                     continue
                 if operator not in paint_operators | {"n"}:
                     continue
-                outside = False
-                if points:
+                outside_subpaths = set()
+                for subpath, points in enumerate(subpath_points):
+                    if not points:
+                        continue
                     xs, ys = zip(*points)
                     bounds = (min(xs), min(ys), max(xs), max(ys))
-                    outside = _fully_outside(bounds, trim)
-                if has_clip or not outside or operator == "n":
-                    output.extend(buffered)
+                    if _fully_outside(bounds, trim):
+                        outside_subpaths.add(subpath)
+                if has_clip or operator == "n":
+                    output.extend(item for item, _subpath in buffered)
+                else:
+                    output.extend(
+                        item for item, subpath in buffered
+                        if subpath not in outside_subpaths
+                    )
                 buffered = []
-                points = []
+                subpath_points = []
+                current_subpath = -1
                 has_clip = False
                 continue
             output.append(instruction)
-        output.extend(buffered)
+        output.extend(item for item, _subpath in buffered)
         page.obj.Contents = pdf.make_stream(
             pikepdf.unparse_content_stream(output)
         )

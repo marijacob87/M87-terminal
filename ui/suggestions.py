@@ -66,9 +66,6 @@ class SuggestionsBox(QWidget):
 
     def format_item_text(self, item, prefix):
         if isinstance(item, dict):
-            if item.get("type") == "update_action":
-                return f"{prefix} {item.get('label', 'EXECUTAR ATUALIZAÇÃO')}"
-
             if item.get("type") in ("application", "running_application"):
                 return f"{prefix} {item.get('name', 'Aplicativo')}"
 

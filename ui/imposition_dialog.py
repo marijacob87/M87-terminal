@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import math
+import tempfile
 from pathlib import Path
 
 import fitz
 from PySide6.QtCore import (
-    QEvent, QPoint, QPointF, QRectF, QSettings, Qt, QTimer, Signal,
+    QEvent, QPoint, QSettings, Qt, QTimer, Signal,
 )
-from PySide6.QtGui import QColor, QCursor, QFont, QIcon, QImage, QPainter, QPen, QPixmap, QTransform
+from PySide6.QtGui import QCursor, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -49,362 +50,25 @@ from core.imposition import (
     effective_bleed_rect,
     open_pdf_for_imposition,
 )
+from core.imposition_naming import filename_from_sheet_label, sheet_label_from_filename
 from core.print_log import make_entry
+from core.preferences import save_path
 from ui.geometry_widget import FIXED_FORMATS
+from ui.imposition_preview import PreviewWidget
 from ui.print_log_dialog import PrintLogDialog
 from ui.tool_design import (
-    TOOL_CHIP_HEIGHT, TOOL_CONTROLS_WIDTH, TOOL_STANDARD_QSS,
-    ToolSuggestionButton, configure_measure_swap, set_tool_role,
+    TOOL_BACKGROUND, TOOL_BUTTON_HEIGHT, TOOL_CHIP_HEIGHT, TOOL_CONTROLS_WIDTH,
+    TOOL_FIELD_HEIGHT, TOOL_STANDARD_QSS,
+    ToolActionBar, ToolPreviewToolbar, ToolSuggestionButton, configure_measure_swap,
+    apply_terminal_accent, create_pdf_file_card,
+    set_open_pdf_loaded,
+    format_pdf_file_summary, set_document_control_enabled, set_tool_role,
 )
 from ui.widgets import DarkMetallicTitleBar
+from ui.konica_print import spool_pdf
 
 ROOT = Path(__file__).resolve().parent.parent
 YELLOW = "#FFC400"
-
-
-class DropPanel(QFrame):
-    fileDropped = Signal(object)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-        self.setObjectName("impDropPanel")
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(8)
-        self.icon = QLabel()
-        self.icon.setObjectName("impDropIcon")
-        self.icon.setFixedSize(30, 30)
-        self.icon.setPixmap(self._build_pdf_download_icon())
-        self.title = QLabel("ARRASTE OU CLIQUE PARA ESCOLHER\nUM OU MAIS PDFs")
-        self.title.setObjectName("impDropTitle")
-        self.title.setWordWrap(True)
-        self.icon.setAlignment(Qt.AlignCenter)
-        self.title.setAlignment(Qt.AlignCenter)
-        layout.addStretch()
-        layout.addWidget(self.icon, 0, Qt.AlignVCenter)
-        layout.addWidget(self.title)
-        layout.addStretch()
-
-    def _build_pdf_download_icon(self) -> QPixmap:
-        """Desenha um ícone compacto de PDF com seta, sem ultrapassar o canvas."""
-        pixmap = QPixmap(30, 30)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-
-        pen = QPen(QColor(YELLOW), 1.6)
-        pen.setJoinStyle(Qt.RoundJoin)
-        pen.setCapStyle(Qt.RoundCap)
-        painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
-
-        # Documento compacto, inteiramente contido no canvas.
-        painter.drawLine(5, 3, 17, 3)
-        painter.drawLine(5, 3, 5, 24)
-        painter.drawLine(5, 24, 15, 24)
-        painter.drawLine(17, 3, 23, 9)
-        painter.drawLine(23, 9, 23, 16)
-        painter.drawLine(17, 3, 17, 9)
-        painter.drawLine(17, 9, 23, 9)
-
-        # Seta curta, com folga real em todas as bordas.
-        painter.drawLine(20, 15, 20, 25)
-        painter.drawLine(16, 21, 20, 25)
-        painter.drawLine(24, 21, 20, 25)
-        painter.end()
-        return pixmap
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.fileDropped.emit("")
-        super().mousePressEvent(event)
-
-    def _pdf_paths_from_mime(self, mime_data):
-        paths = []
-        for url in mime_data.urls():
-            path = Path(url.toLocalFile())
-            if path.is_file() and path.suffix.lower() == ".pdf":
-                paths.append(str(path))
-        return paths
-
-    def _install_drop_filters(self):
-        # QTableWidget, QLineEdit e outros filhos aceitam o evento antes do diálogo.
-        # Instalamos o mesmo filtro em toda a árvore para que soltar PDFs funcione
-        # literalmente em qualquer ponto da janela.
-        for widget in [self, *self.findChildren(QWidget)]:
-            widget.setAcceptDrops(True)
-            widget.installEventFilter(self)
-
-    def eventFilter(self, watched, event):
-        if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
-            paths = self._pdf_paths_from_mime(event.mimeData())
-            if paths:
-                event.acceptProposedAction()
-                return True
-        elif event.type() == QEvent.Type.Drop:
-            paths = self._pdf_paths_from_mime(event.mimeData())
-            if paths:
-                self.fileDropped.emit(paths)
-                event.acceptProposedAction()
-                return True
-        return super().eventFilter(watched, event)
-
-    def dragEnterEvent(self, event):
-        paths = self._pdf_paths_from_mime(event.mimeData())
-        if paths and all(path.lower().endswith(".pdf") for path in paths):
-            event.acceptProposedAction()
-
-    def dropEvent(self, event):
-        paths = self._pdf_paths_from_mime(event.mimeData())
-        if paths:
-            self.fileDropped.emit(paths)
-            event.acceptProposedAction()
-
-
-class PreviewWidget(QWidget):
-    zoomChanged = Signal(int)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("impPreview")
-        self.setMinimumSize(420, 420)
-        self.paper_w = 480.0
-        self.paper_h = 330.0
-        self.layout_option: LayoutOption | None = None
-        self.gutter = 5.0
-        self.page_count = 0
-        self.mode = "repeat"
-        self.fill_order = "rows"
-        self.thumbnails: list[QPixmap] = []
-        self.crop_marks = True
-        self.crop_mark_offset = 3.0
-        self.crop_mark_length = 5.0
-        self.crop_mark_thickness = .25
-        self.sheet_index = 0
-        self.bleed_left = 0.0
-        self.bleed_top = 0.0
-        self.bleed_right = 0.0
-        self.bleed_bottom = 0.0
-        self.identify_sheets = False
-        self.sheet_legend = ""
-        self.total_sheets = 0
-        self._zoom = 1.0
-        self._pan = QPointF()
-        self._drag_origin = None
-
-    def set_state(
-        self,
-        *,
-        paper_w,
-        paper_h,
-        option,
-        gutter,
-        page_count,
-        mode,
-        fill_order,
-        thumbnails,
-        crop_marks,
-        sheet_index,
-        bleed_left=0.0,
-        bleed_top=0.0,
-        bleed_right=0.0,
-        bleed_bottom=0.0,
-        identify_sheets=False,
-        sheet_legend="",
-        total_sheets=0,
-        crop_mark_offset=3.0,
-        crop_mark_length=5.0,
-        crop_mark_thickness=.25,
-    ):
-        self.paper_w = paper_w
-        self.paper_h = paper_h
-        self.layout_option = option
-        self.gutter = gutter
-        self.page_count = page_count
-        self.mode = mode
-        self.fill_order = fill_order
-        self.thumbnails = thumbnails
-        self.crop_marks = crop_marks
-        self.sheet_index = sheet_index
-        self.bleed_left = bleed_left
-        self.bleed_top = bleed_top
-        self.bleed_right = bleed_right
-        self.bleed_bottom = bleed_bottom
-        self.identify_sheets = identify_sheets
-        self.sheet_legend = sheet_legend
-        self.total_sheets = total_sheets
-        self.crop_mark_offset = crop_mark_offset
-        self.crop_mark_length = crop_mark_length
-        self.crop_mark_thickness = crop_mark_thickness
-        self.update()
-
-    def set_zoom(self, zoom):
-        self._zoom = min(4.0, max(.5, zoom))
-        if self._zoom <= 1.0:
-            self._pan = QPointF()
-        self.zoomChanged.emit(round(self._zoom * 100))
-        self.update()
-
-    def zoom_in(self):
-        self.set_zoom(self._zoom + .25)
-
-    def zoom_out(self):
-        self.set_zoom(self._zoom - .25)
-
-    def reset_zoom(self):
-        self._pan = QPointF()
-        self.set_zoom(1.0)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self._zoom > 1.0:
-            self._drag_origin = event.position()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        if self._drag_origin is not None:
-            self._pan += event.position() - self._drag_origin
-            self._drag_origin = event.position()
-            self.update()
-            event.accept()
-
-    def mouseReleaseEvent(self, event):
-        if self._drag_origin is not None:
-            self._drag_origin = None
-            self.unsetCursor()
-            event.accept()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor(8, 10, 13))
-        if not self.layout_option:
-            painter.setPen(QColor(255, 255, 255, 95))
-            painter.drawText(self.rect(), Qt.AlignCenter, "Arraste um PDF para visualizar a imposição")
-            return
-
-        margin = 28.0
-        area = self.rect().adjusted(int(margin), int(margin), -int(margin), -int(margin))
-        scale = min(
-            area.width() / self.paper_w, area.height() / self.paper_h
-        ) * self._zoom
-        paper_w_px, paper_h_px = self.paper_w * scale, self.paper_h * scale
-        origin_x = area.center().x() - paper_w_px / 2 + self._pan.x()
-        origin_y = area.center().y() - paper_h_px / 2 + self._pan.y()
-        paper = QRectF(origin_x, origin_y, paper_w_px, paper_h_px)
-        painter.setPen(QPen(QColor(255, 255, 255, 170), 1))
-        painter.setBrush(QColor(245, 245, 242))
-        painter.drawRect(paper)
-
-        option = self.layout_option
-        positions: list[tuple[int, int]] = []
-        if self.fill_order == "columns":
-            for col in range(option.columns):
-                for row in range(option.rows):
-                    positions.append((row, col))
-        else:
-            for row in range(option.rows):
-                for col in range(option.columns):
-                    positions.append((row, col))
-
-        for slot, (row, col) in enumerate(positions):
-            if self.mode == "repeat":
-                source_index = self.sheet_index
-            else:
-                source_index = self.sheet_index * option.total + slot
-                if source_index >= self.page_count:
-                    break
-
-            x = origin_x + (option.start_x_mm + col * (option.item_width_mm + self.gutter)) * scale
-            y = origin_y + (option.start_y_mm + row * (option.item_height_mm + self.gutter)) * scale
-            rect = QRectF(x, y, option.item_width_mm * scale, option.item_height_mm * scale)
-            if option.rotated:
-                bleed_left = self.bleed_bottom
-                bleed_top = self.bleed_left
-                bleed_right = self.bleed_top
-                bleed_bottom = self.bleed_right
-            else:
-                bleed_left = self.bleed_left
-                bleed_top = self.bleed_top
-                bleed_right = self.bleed_right
-                bleed_bottom = self.bleed_bottom
-            bleed_rect = QRectF(
-                rect.left() - bleed_left * scale,
-                rect.top() - bleed_top * scale,
-                rect.width() + (bleed_left + bleed_right) * scale,
-                rect.height() + (bleed_top + bleed_bottom) * scale,
-            )
-            pixmap = self.thumbnails[source_index] if source_index < len(self.thumbnails) else None
-            if pixmap and not pixmap.isNull():
-                transformed = pixmap.transformed(QTransform().rotate(90)) if option.rotated else pixmap
-                painter.drawPixmap(bleed_rect.toRect(), transformed)
-            else:
-                painter.fillRect(bleed_rect, QColor(220, 220, 215))
-
-            if self.mode == "sequential":
-                painter.setBrush(QColor(0, 0, 0, 150))
-                badge = QRectF(rect.left() + 3, rect.top() + 3, 30, 17)
-                painter.drawRoundedRect(badge, 3, 3)
-                painter.setPen(QColor(255, 255, 255))
-                painter.drawText(badge, Qt.AlignCenter, str(source_index + 1))
-
-        if self.crop_marks:
-            self._draw_outer_marks(painter, option, scale, origin_x, origin_y)
-
-        if self.identify_sheets and self.sheet_legend.strip():
-            self._draw_sheet_label(painter, paper, scale)
-
-
-    def _draw_sheet_label(self, painter, paper, scale):
-        label = " ".join(self.sheet_legend.split())
-        painter.save()
-        font = QFont("Helvetica")
-        # O mínimo legível também acompanha o zoom para que a legenda preserve
-        # a mesma proporção visual em relação à folha.
-        font.setPixelSize(max(1, round(max(6.0 * self._zoom, 2.47 * scale))))
-        painter.setFont(font)
-        painter.setPen(QColor(0, 0, 0))
-        right = paper.right() - 50.0 * scale
-        top = paper.top() + 5.0 * scale
-        height = max(3.2 * scale, painter.fontMetrics().height())
-        rect = QRectF(paper.left() + 3.0 * scale, top,
-                      max(1.0, right - (paper.left() + 3.0 * scale)), height)
-        painter.drawText(rect, Qt.AlignRight | Qt.AlignTop, label)
-        painter.restore()
-
-    def _draw_outer_marks(self, painter, option, scale, origin_x, origin_y):
-        length = self.crop_mark_length * scale
-        distance = self.crop_mark_offset * scale
-        painter.setPen(
-            QPen(
-                QColor(0, 0, 0),
-                max(0.55, self.crop_mark_thickness * scale / 2.83465),
-            )
-        )
-
-        left = origin_x + option.start_x_mm * scale
-        top = origin_y + option.start_y_mm * scale
-        right = origin_x + (option.start_x_mm + option.occupied_width_mm) * scale
-        bottom = origin_y + (option.start_y_mm + option.occupied_height_mm) * scale
-
-        x_boundaries = set()
-        for col in range(option.columns):
-            x0 = origin_x + (option.start_x_mm + col * (option.item_width_mm + self.gutter)) * scale
-            x_boundaries.add(round(x0, 3))
-            x_boundaries.add(round(x0 + option.item_width_mm * scale, 3))
-        for x in sorted(x_boundaries):
-            painter.drawLine(int(x), int(top - distance - length), int(x), int(top - distance))
-            painter.drawLine(int(x), int(bottom + distance), int(x), int(bottom + distance + length))
-
-        y_boundaries = set()
-        for row in range(option.rows):
-            y0 = origin_y + (option.start_y_mm + row * (option.item_height_mm + self.gutter)) * scale
-            y_boundaries.add(round(y0, 3))
-            y_boundaries.add(round(y0 + option.item_height_mm * scale, 3))
-        for y in sorted(y_boundaries):
-            painter.drawLine(int(left - distance - length), int(y), int(left - distance), int(y))
-            painter.drawLine(int(right + distance), int(y), int(right + distance + length), int(y))
 
 
 class ImpositionDialog(QDialog):
@@ -421,6 +85,7 @@ class ImpositionDialog(QDialog):
         self.selected_option = 0
         self.manual_override = False
         self.current_sheet = 0
+        self._rotation_selection_history: list[int] = []
         self.thumbnails: list[QPixmap] = []
         self.batch_items: list[dict] = []
         self.batch_mode = False
@@ -433,11 +98,13 @@ class ImpositionDialog(QDialog):
         self._geometry_save_timer.timeout.connect(self._save_geometry)
         self._setup_window()
         self._build_ui()
+        apply_terminal_accent(self.box)
         self._style()
         self._connect()
         self._install_drop_filters()
         self._restore_geometry()
         self.recalculate()
+        self._set_document_enabled(False)
 
     def _setup_window(self):
         self.setWindowTitle("IMP · MONTAR IMPOSIÇÃO")
@@ -458,7 +125,7 @@ class ImpositionDialog(QDialog):
         self.box.setProperty("toolSurface", True)
         outer.addWidget(self.box)
         root = QVBoxLayout(self.box)
-        root.setContentsMargins(0, 0, 0, 8)
+        root.setContentsMargins(0, 0, 0, 12)
         root.setSpacing(5)
 
         bar = DarkMetallicTitleBar(height=28, radius=12)
@@ -490,42 +157,39 @@ class ImpositionDialog(QDialog):
         self.batch_panel = self._batch_panel()
         self.batch_panel.hide()
         center_layout.addWidget(self.batch_panel, 0)
-        center_layout.addWidget(self._sheet_identification_panel(), 0)
-        zoom_row = QHBoxLayout()
-        zoom_row.addStretch()
-        self.zoom_out_button = QPushButton("−")
-        self.zoom_label = QPushButton("100%")
-        self.zoom_in_button = QPushButton("+")
-        for button in (
-            self.zoom_out_button, self.zoom_label, self.zoom_in_button,
-        ):
-            button.setObjectName("impZoom")
-        self.zoom_out_button.setFixedWidth(28)
-        self.zoom_label.setFixedWidth(48)
-        self.zoom_in_button.setFixedWidth(28)
-        zoom_row.addWidget(self.zoom_out_button)
-        zoom_row.addWidget(self.zoom_label)
-        zoom_row.addWidget(self.zoom_in_button)
-        zoom_row.addStretch()
-        center_layout.addLayout(zoom_row)
+        self.sheet_identification_panel = self._sheet_identification_panel()
+        center_layout.addWidget(self.sheet_identification_panel, 0)
+        self.preview_toolbar = ToolPreviewToolbar()
+        self.prev_sheet = self.preview_toolbar.previous_button
+        self.sheet_label = self.preview_toolbar.page_label
+        self.next_sheet = self.preview_toolbar.next_button
+        self.rotate_undo_button = self.preview_toolbar.rotation_undo_button
+        self.rotate_button = self.preview_toolbar.rotate_button
+        self.zoom_out_button = self.preview_toolbar.zoom_out_button
+        self.zoom_label = self.preview_toolbar.zoom_label
+        self.zoom_in_button = self.preview_toolbar.zoom_in_button
+        self.rotate_undo_button.setToolTip("Restaurar a orientação anterior")
+        self.rotate_button.setToolTip("Alternar a orientação da arte em 90°")
+        center_layout.addWidget(self.preview_toolbar)
         self.preview = PreviewWidget()
         center_layout.addWidget(self.preview, 1)
-        center_layout.addWidget(self._filename_panel(), 0)
-        nav = QHBoxLayout()
-        self.prev_sheet = QPushButton("‹ ANTERIOR")
-        self.prev_sheet.setObjectName("impNav")
-        self.sheet_label = QLabel("Montagem —")
-        self.sheet_label.setObjectName("impSheetLabel")
-        self.sheet_label.setAlignment(Qt.AlignCenter)
-        self.next_sheet = QPushButton("PRÓXIMA ›")
-        self.next_sheet.setObjectName("impNav")
-        nav.addWidget(self.prev_sheet)
-        nav.addWidget(self.sheet_label, 1)
-        nav.addWidget(self.next_sheet)
-        center_layout.addLayout(nav)
+        self.filename_panel = self._filename_panel()
+        center_layout.addWidget(self.filename_panel, 0)
         body.addWidget(center, 1)
         body.addWidget(self._right_panel(), 0)
         root.addLayout(body, 1)
+
+        footer = ToolActionBar(
+            restore=self._clear_batch,
+            print_file=self._print_current,
+            save_as=self._save,
+        )
+        footer.setContentsMargins(14, 0, 14, 0)
+        self.restore_button = footer.restore_button
+        self.print_button = footer.print_button
+        self.save = footer.save_button
+        footer.set_document_enabled(False)
+        root.addLayout(footer)
 
         grip_row = QHBoxLayout()
         grip_row.addStretch()
@@ -598,21 +262,9 @@ class ImpositionDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(7)
 
-        file_card, file_layout = self._card("ARQUIVO")
-        self.drop = DropPanel()
-        self.drop.setFixedHeight(42)
-        self.drop.icon.setFixedSize(22, 22)
-        self.drop.icon.setPixmap(
-            self.drop.icon.pixmap().scaled(
-                22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
+        file_card, self.open_button, self.file_label = create_pdf_file_card(
+            lambda: self._choose_or_load(None)
         )
-        self.drop.title.setText("ARRASTE OU CLIQUE PARA ESCOLHER PDFs")
-        file_layout.addWidget(self.drop)
-        self.file_label = QLabel("Nenhum PDF carregado")
-        self.file_label.setObjectName("impFile")
-        self.file_label.setWordWrap(True)
-        file_layout.addWidget(self.file_label)
         layout.addWidget(file_card)
 
         paper_card, paper_layout = self._card("PAPEL")
@@ -681,7 +333,11 @@ class ImpositionDialog(QDialog):
         self.order.addItems(["Esquerda → direita, depois desce", "Cima → baixo, depois avança"])
         distribution_layout.addWidget(self.order)
         layout.addWidget(distribution_card)
-        layout.addWidget(self._marks_card())
+        marks_card = self._marks_card()
+        layout.addWidget(marks_card)
+        self._left_document_cards = (
+            paper_card, spacing_card, distribution_card, marks_card,
+        )
         layout.addStretch()
         return panel
 
@@ -761,6 +417,7 @@ class ImpositionDialog(QDialog):
         production_layout.addLayout(material_presets)
         production_layout.addStretch(1)
         layout.addWidget(production_card, 1)
+        self._right_document_cards = (result_card, production_card)
         self.bleed_warning = QLabel(
             "Sangria inferior a 3 mm"
         )
@@ -769,9 +426,6 @@ class ImpositionDialog(QDialog):
         self.bleed_warning.hide()
         production_layout.addWidget(self.summary)
         production_layout.addWidget(self.bleed_warning)
-        self.save = QPushButton("SALVAR NO DESKTOP")
-        self.save.setObjectName("impSave")
-        self.save.setEnabled(False)
         self.register_in_sheet = QCheckBox("Registrar na planilha")
         self.register_in_sheet.setChecked(
             self.settings.value(
@@ -781,13 +435,16 @@ class ImpositionDialog(QDialog):
             )
         )
         production_layout.addWidget(self.register_in_sheet)
-        production_layout.addWidget(self.save)
-        self.release_pdf_button = QPushButton("LIBERAR PDF")
-        self.release_pdf_button.setObjectName("impRelease")
-        self.release_pdf_button.setEnabled(False)
-        self.release_pdf_button.setToolTip("Remove todos os PDFs carregados e limpa a prévia")
-        production_layout.addWidget(self.release_pdf_button)
         return panel
+
+    def _set_document_enabled(self, enabled):
+        for card in (*self._left_document_cards, *self._right_document_cards):
+            set_document_control_enabled(card, enabled)
+        for widget in (
+            self.sheet_identification_panel, self.filename_panel,
+        ):
+            set_document_control_enabled(widget, enabled)
+        self.preview_toolbar.set_document_enabled(enabled)
 
 
     def _sheet_identification_panel(self):
@@ -798,7 +455,7 @@ class ImpositionDialog(QDialog):
         layout.setSpacing(8)
 
         self.identify_sheets = QCheckBox("Identificar folhas")
-        self.identify_sheets.setChecked(True)
+        self.identify_sheets.setChecked(False)
         self.sheet_legend = QLineEdit()
         self.sheet_legend.setPlaceholderText("Legenda impressa no topo da folha")
         layout.addWidget(self.identify_sheets, 0)
@@ -882,7 +539,6 @@ class ImpositionDialog(QDialog):
         return layout
 
     def _connect(self):
-        self.drop.fileDropped.connect(self._choose_or_load)
         self.zoom_out_button.clicked.connect(self.preview.zoom_out)
         self.zoom_in_button.clicked.connect(self.preview.zoom_in)
         self.zoom_label.clicked.connect(self.preview.reset_zoom)
@@ -918,7 +574,8 @@ class ImpositionDialog(QDialog):
         self.rows.valueChanged.connect(self._manual_grid_changed)
         self.prev_sheet.clicked.connect(lambda: self._change_sheet(-1))
         self.next_sheet.clicked.connect(lambda: self._change_sheet(1))
-        self.save.clicked.connect(self._save)
+        self.rotate_button.clicked.connect(self._rotate_layout)
+        self.rotate_undo_button.clicked.connect(self._undo_layout_rotation)
         self.register_in_sheet.toggled.connect(
             lambda checked: self.settings.setValue(
                 "imposition/register_in_sheet",
@@ -929,7 +586,6 @@ class ImpositionDialog(QDialog):
         self.apply_all_button.clicked.connect(self._apply_quantity_to_all)
         self.remove_batch_button.clicked.connect(self._remove_selected_batch)
         self.clear_batch_button.clicked.connect(self._clear_batch)
-        self.release_pdf_button.clicked.connect(self._clear_batch)
         self.cancel_batch_button.clicked.connect(self._cancel_batch)
 
     def _apply_material_preset(self, value: str):
@@ -1001,11 +657,21 @@ class ImpositionDialog(QDialog):
         self.paper_preset.blockSignals(False)
         # Assim como na Geometria, os chips são ações rápidas e não estados.
 
-    def _legend_edited(self, _text):
+    def _legend_edited(self, text):
         self.legend_customized = True
-
-    def _filename_edited(self, _text):
         self.filename_customized = True
+        self.filename.blockSignals(True)
+        self.filename.setText(filename_from_sheet_label(text))
+        self.filename.blockSignals(False)
+        self.recalculate()
+
+    def _filename_edited(self, text):
+        self.filename_customized = True
+        self.legend_customized = True
+        self.sheet_legend.blockSignals(True)
+        self.sheet_legend.setText(sheet_label_from_filename(text))
+        self.sheet_legend.blockSignals(False)
+        self.recalculate()
 
     def _filename_mode_changed(self, checked):
         self.filename.setEnabled(checked and not self.batch_mode)
@@ -1025,16 +691,7 @@ class ImpositionDialog(QDialog):
 
     @staticmethod
     def _plans_description(mode, page_count, plans, compact=False):
-        if mode == "repeat" and page_count > 1:
-            total = plans * page_count
-            if compact:
-                return f"{plans} planos/pág. · {total} no total"
-            return f"Planos: {plans} por página · {total} no total"
-        return f"{plans} planos" if compact else f"Planos totais: {plans}"
-
-    @staticmethod
-    def _production_plans(mode, page_count, plans):
-        return plans * page_count if mode == "repeat" else plans
+        return f"{plans} planos" if compact else f"Planos: {plans}"
 
     def _default_sheet_legend(
         self, path, quantity, plans, page_count=None, mode=None,
@@ -1043,13 +700,11 @@ class ImpositionDialog(QDialog):
             self.geometry_info.page_count if self.geometry_info else 1
         )
         mode = mode or ("repeat" if self.repeat.isChecked() else "sequential")
-        each_artwork = mode == "repeat" and page_count > 1
         return automatic_sheet_label(
             path,
             quantity,
-            self._production_plans(mode, page_count, plans),
+            plans,
             self.material.text(),
-            each_artwork=each_artwork,
         )
 
     def _update_sheet_legend(self, path, quantity, plans):
@@ -1110,7 +765,10 @@ class ImpositionDialog(QDialog):
             return
 
         self.batch_items = items
-        self.release_pdf_button.setEnabled(True)
+        set_open_pdf_loaded(self.open_button, True)
+        self._set_document_enabled(True)
+        self.restore_button.setEnabled(True)
+        self.print_button.setEnabled(True)
         self.pdfStateChanged.emit([str(item["path"]) for item in items])
         self.batch_mode = len(items) > 1
         self.legend_customized = False
@@ -1119,7 +777,6 @@ class ImpositionDialog(QDialog):
         self.filename.setEnabled(self.use_custom_filename.isChecked() and not self.batch_mode)
         self.manual_override = False
         self.batch_panel.setVisible(self.batch_mode)
-        self.save.setText("PROCESSAR TODOS NO DESKTOP" if self.batch_mode else "SALVAR NO DESKTOP")
         self.file_label.setText(
             f"{len(items)} PDFs carregados · selecione um item para visualizar"
             if self.batch_mode else ""
@@ -1141,16 +798,12 @@ class ImpositionDialog(QDialog):
         self.quantity.setValue(item["quantity"])
         self.quantity.blockSignals(False)
         self.current_sheet = 0
-        if self.batch_mode:
-            self.file_label.setText(
-                f"{self.naming_path.name}\nTrimBox: {self.geometry_info.trim_width_mm:.2f} × "
-                f"{self.geometry_info.trim_height_mm:.2f} mm · {self.geometry_info.page_count} pág."
-            )
-        else:
-            self.file_label.setText(
-                f"{self.naming_path.name}\nTrimBox: {self.geometry_info.trim_width_mm:.2f} × "
-                f"{self.geometry_info.trim_height_mm:.2f} mm · {self.geometry_info.page_count} pág."
-            )
+        self.file_label.setText(format_pdf_file_summary(
+            self.naming_path.name,
+            self.geometry_info.trim_width_mm,
+            self.geometry_info.trim_height_mm,
+            self.geometry_info.page_count,
+        ))
         self._render_thumbnails()
         self.bleed_warning.setVisible(not self.geometry_info.has_minimum_bleed)
         self.save.setEnabled(True)
@@ -1238,7 +891,6 @@ class ImpositionDialog(QDialog):
             return
         self.batch_mode = len(self.batch_items) > 1
         self.batch_panel.setVisible(self.batch_mode)
-        self.save.setText("PROCESSAR TODOS NO DESKTOP" if self.batch_mode else "SALVAR NO DESKTOP")
         self._populate_batch_table()
         self._activate_batch_index(min(row, len(self.batch_items) - 1))
 
@@ -1252,8 +904,9 @@ class ImpositionDialog(QDialog):
         self.thumbnails = []
         self.preview.reset_zoom()
         self.file_label.setText("Nenhum PDF carregado")
-        self.release_pdf_button.setEnabled(False)
-        self.save.setText("SALVAR NO DESKTOP")
+        set_open_pdf_loaded(self.open_button, False)
+        self.restore_button.setEnabled(False)
+        self.print_button.setEnabled(False)
         self.save.setEnabled(False)
         self.sheet_legend.clear()
         self.filename.clear()
@@ -1263,6 +916,7 @@ class ImpositionDialog(QDialog):
         self.bleed_warning.hide()
         self.pdfStateChanged.emit([])
         self.recalculate()
+        self._set_document_enabled(False)
 
     def _cancel_batch(self):
         self.batch_cancelled = True
@@ -1447,13 +1101,8 @@ class ImpositionDialog(QDialog):
             automatic_name = automatic_filename(
                 self.naming_path or self.pdf_path,
                 self.quantity.value(),
-                self._production_plans(
-                    mode, self.geometry_info.page_count, plans
-                ),
+                plans,
                 self.material.text(),
-                each_artwork=(
-                    mode == "repeat" and self.geometry_info.page_count > 1
-                ),
             )
             if not self.filename_customized or self.batch_mode:
                 self.filename.blockSignals(True)
@@ -1520,18 +1169,22 @@ class ImpositionDialog(QDialog):
 
     def _update_navigation(self, total_sheets: int):
         if total_sheets < 1:
-            self.sheet_label.setText("Montagem —")
+            self.sheet_label.setText("Nenhum PDF")
             self.prev_sheet.setEnabled(False)
             self.next_sheet.setEnabled(False)
+            self.rotate_button.setEnabled(False)
+            self.rotate_undo_button.setEnabled(False)
             return
-        if self.repeat.isChecked():
-            self.sheet_label.setText(
-                f"Montagem {self.current_sheet + 1} de {total_sheets} · Página {self.current_sheet + 1}"
-            )
-        else:
-            self.sheet_label.setText(f"Montagem {self.current_sheet + 1} de {total_sheets}")
+        self.sheet_label.setText(
+            f"Página {self.current_sheet + 1} de {total_sheets}"
+        )
         self.prev_sheet.setEnabled(self.current_sheet > 0)
         self.next_sheet.setEnabled(self.current_sheet < total_sheets - 1)
+        active = self._active_layout()
+        self.rotate_button.setEnabled(
+            bool(active) and any(option.rotated != active.rotated for option in self.options)
+        )
+        self.rotate_undo_button.setEnabled(bool(self._rotation_selection_history))
 
     def _change_sheet(self, delta: int):
         option = self._active_layout()
@@ -1540,6 +1193,27 @@ class ImpositionDialog(QDialog):
         total = self._preview_sheet_count(option)
         self.current_sheet = max(0, min(total - 1, self.current_sheet + delta))
         self._refresh()
+
+    def _rotate_layout(self):
+        active = self._active_layout()
+        if not active:
+            return
+        target = next(
+            (
+                index for index, option in enumerate(self.options)
+                if option.rotated != active.rotated
+            ),
+            None,
+        )
+        if target is None:
+            return
+        self._rotation_selection_history.append(self.selected_option)
+        self._select(target)
+
+    def _undo_layout_rotation(self):
+        if not self._rotation_selection_history:
+            return
+        self._select(self._rotation_selection_history.pop())
 
     def _mode_changed(self, *_):
         self.current_sheet = 0
@@ -1585,7 +1259,11 @@ class ImpositionDialog(QDialog):
         self.recalculate()
 
     def _unique_desktop_output(self, name: str) -> Path:
-        output = Path.home() / "Desktop" / name
+        return self._unique_output(Path.home() / "Desktop", name)
+
+    @staticmethod
+    def _unique_output(folder: Path, name: str) -> Path:
+        output = folder / name
         if not output.exists():
             return output
         counter = 2
@@ -1609,16 +1287,19 @@ class ImpositionDialog(QDialog):
         automatic_name = automatic_filename(
             self.pdf_path,
             self.quantity.value(),
-            self._production_plans(
-                mode, self.geometry_info.page_count, plans
-            ),
+            plans,
             self.material.text(),
-            each_artwork=(
-                mode == "repeat" and self.geometry_info.page_count > 1
-            ),
         )
         name = self._normalized_output_name(automatic_name)
-        output = self._unique_desktop_output(name)
+        default = save_path(Path.home() / "Desktop" / name)
+        selected, _ = QFileDialog.getSaveFileName(
+            self, "Salvar imposição", default, "PDF (*.pdf)"
+        )
+        if not selected:
+            return
+        output = Path(selected)
+        if output.suffix.lower() != ".pdf":
+            output = output.with_suffix(".pdf")
         try:
             result = export_imposition(
                 self.pdf_path, output, option, self.gutter.value(), mode,
@@ -1629,7 +1310,7 @@ class ImpositionDialog(QDialog):
                 crop_mark_length_mm=self.mark_length.value(),
                 crop_mark_thickness_pt=self.mark_thickness.value(),
             )
-            message = f"✓ Imposição salva no Desktop\n{output.name}"
+            message = f"✓ Imposição salva\n{output}"
             if result.source_pdfx:
                 profile_status = (
                     "perfil ICC preservado"
@@ -1652,9 +1333,52 @@ class ImpositionDialog(QDialog):
         except ImpositionError as exc:
             self._message(str(exc), error=True)
 
+    def _print_current(self):
+        if self.batch_mode:
+            self._message("Para imprimir um lote, selecione e envie cada imposição separadamente.", error=True)
+            return
+        option = self._active_layout()
+        if not self.pdf_path or not option or not self.geometry_info:
+            return
+        mode = "repeat" if self.repeat.isChecked() else "sequential"
+        plans = calculate_plans(
+            mode, self.geometry_info.page_count, option.total, self.quantity.value()
+        )
+        name = automatic_filename(
+            self.pdf_path,
+            self.quantity.value(),
+            plans,
+            self.material.text(),
+        )
+        temporary = tempfile.TemporaryDirectory(prefix="m87_imp_print_")
+        output = Path(temporary.name) / self._normalized_output_name(name)
+        try:
+            export_imposition(
+                self.pdf_path, output, option, self.gutter.value(), mode,
+                self.quantity.value(), self.marks.isChecked(),
+                "rows" if self.order.currentIndex() == 0 else "columns",
+                self.identify_sheets.isChecked(), self.sheet_legend.text(),
+                crop_mark_offset_mm=self.mark_offset.value(),
+                crop_mark_length_mm=self.mark_length.value(),
+                crop_mark_thickness_pt=self.mark_thickness.value(),
+            )
+        except ImpositionError as exc:
+            temporary.cleanup()
+            self._message(str(exc), error=True)
+            return
+        spool_pdf(
+            self, output, button=self.print_button, cleanup=temporary.cleanup,
+        )
+
     def _save_batch(self):
         if not self.batch_items:
             return
+        folder = QFileDialog.getExistingDirectory(
+            self, "Escolher pasta para as imposições", str(Path.home() / "Desktop")
+        )
+        if not folder:
+            return
+        output_folder = Path(folder)
         self.batch_cancelled = False
         self.batch_progress.show()
         self.cancel_batch_button.show()
@@ -1686,11 +1410,10 @@ class ImpositionDialog(QDialog):
             name = automatic_filename(
                 path,
                 quantity,
-                self._production_plans(mode, info.page_count, plans),
+                plans,
                 self.material.text(),
-                each_artwork=(mode == "repeat" and info.page_count > 1),
             )
-            output = self._unique_desktop_output(name)
+            output = self._unique_output(output_folder, name)
             if self.legend_customized:
                 label_text = self.sheet_legend.text()
             else:
@@ -1760,51 +1483,6 @@ class ImpositionDialog(QDialog):
 
     def _message(self, text, error=False):
         self.summary.setText(("⚠ " if error else "") + text)
-
-    def _pdf_paths_from_mime(self, mime_data):
-        paths = []
-        for url in mime_data.urls():
-            path = Path(url.toLocalFile())
-            if path.is_file() and path.suffix.lower() == ".pdf":
-                paths.append(str(path))
-        return paths
-
-    def _install_drop_filters(self):
-        # QTableWidget, QLineEdit e outros filhos aceitam o evento antes do diálogo.
-        # Instalamos o mesmo filtro em toda a árvore para que soltar PDFs funcione
-        # literalmente em qualquer ponto da janela.
-        for widget in [self, *self.findChildren(QWidget)]:
-            widget.setAcceptDrops(True)
-            widget.installEventFilter(self)
-
-    def eventFilter(self, watched, event):
-        if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
-            paths = self._pdf_paths_from_mime(event.mimeData())
-            if paths:
-                event.acceptProposedAction()
-                return True
-        elif event.type() == QEvent.Type.Drop:
-            paths = self._pdf_paths_from_mime(event.mimeData())
-            if paths:
-                self.load_pdfs(paths)
-                event.acceptProposedAction()
-                return True
-        return super().eventFilter(watched, event)
-
-    def dragEnterEvent(self, event):
-        paths = self._pdf_paths_from_mime(event.mimeData())
-        if paths and all(path.lower().endswith(".pdf") for path in paths):
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        paths = self._pdf_paths_from_mime(event.mimeData())
-        if paths:
-            self.load_pdfs(paths)
-            event.acceptProposedAction()
-        else:
-            event.ignore()
 
     def _title_press(self, event):
         if event.button() == Qt.LeftButton:
@@ -1900,25 +1578,20 @@ class ImpositionDialog(QDialog):
 
     def _style(self):
         self.setStyleSheet(
-            f'''QWidget {{ font-family:"JetBrains Mono"; font-size:10px; }}
-            QWidget#impBox, QWidget#impControls {{ background:#080a0d; }}
+            f'''QWidget {{ font-family:"JetBrains Mono"; font-size:11px; }}
+            QWidget#impBox, QWidget#impControls {{ background:{TOOL_BACKGROUND}; }}
             QWidget#impBox {{ border:1px solid rgba(255,196,0,.20); border-radius:13px; }}
-            QWidget#impBox[embedded="true"] {{ border:0; border-radius:0; background:#080a0d; }}
+            QWidget#impBox[embedded="true"] {{ border:0; border-radius:0; background:{TOOL_BACKGROUND}; }}
             QLabel#impWindowTitle {{ color:white; font-size:10px; letter-spacing:1px; }}
             QLabel#impClose {{ color:white; font-size:16px; padding:0 4px; }}
             QLabel#impClose:hover {{ color:{YELLOW}; }}
             QFrame#impCard, QFrame#impBatchPanel {{ background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-radius:7px; }}
-            QLabel#impCardTitle, QLabel#impSection {{ color:{YELLOW}; font-size:9px; font-weight:700; letter-spacing:.7px; }}
-            QFrame#impDropPanel {{ border:1px solid rgba(255,255,255,.08); border-radius:6px; background:rgba(0,0,0,.18); }}
-            QLabel#impDropIcon {{ font-size:20px; font-weight:600; color:rgba(255,196,0,.82); }}
-            QLabel#impDropTitle {{ color:{YELLOW}; font-size:9px; font-weight:700; }}
+            QLabel#impCardTitle, QLabel#impSection {{ color:{YELLOW}; font-size:10px; font-weight:700; letter-spacing:.7px; }}
             QLabel#impMuted {{ color:rgba(255,255,255,.45); }}
-            QLabel#impFile {{ color:rgba(255,255,255,.43); font-size:9px; padding:1px; }}
-            QLabel#impFieldLabel {{ color:rgba(255,255,255,.43); font-size:8px; }}
-            QDoubleSpinBox,QSpinBox,QLineEdit,QComboBox {{ background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08); border-radius:4px; padding:3px 5px; color:rgba(255,255,255,.88); min-height:20px; }}
-            QRadioButton,QCheckBox {{ color:rgba(255,255,255,.78); spacing:6px; }}
-            QRadioButton::indicator,QCheckBox::indicator {{ width:13px; height:13px; }}
-            QPushButton {{ min-height:20px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:3px 8px; color:rgba(255,255,255,.66); text-align:left; }}
+            QLabel#impFile {{ color:rgba(255,255,255,.43); font-size:10px; padding:1px; }}
+            QLabel#impFieldLabel {{ color:rgba(255,255,255,.43); font-size:9px; }}
+            QDoubleSpinBox,QSpinBox,QLineEdit,QComboBox {{ background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08); border-radius:4px; padding:0 5px; color:rgba(255,255,255,.88); min-height:{TOOL_FIELD_HEIGHT}px; max-height:{TOOL_FIELD_HEIGHT}px; }}
+            QPushButton {{ min-height:{TOOL_BUTTON_HEIGHT}px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:0 8px; color:rgba(255,255,255,.66); text-align:left; }}
             QPushButton:hover {{ color:#fff0a0; border-color:rgba(255,196,0,.55); }}
             QPushButton:checked {{ background:rgba(255,255,255,.065); color:rgba(255,255,255,.88); border-color:rgba(255,255,255,.12); }}
             QPushButton:disabled {{ color:rgba(255,255,255,.24); border-color:rgba(255,255,255,.10); }}
@@ -1926,7 +1599,6 @@ class ImpositionDialog(QDialog):
             QPushButton#impSave {{ text-align:center; }}
             QPushButton#impRelease {{ text-align:center; color:rgba(255,255,255,.62); background:rgba(255,255,255,.025); border-color:rgba(255,255,255,.12); }}
             QPushButton#impRelease:hover {{ color:#ffb3b3; border-color:rgba(255,90,90,.58); background:rgba(160,35,35,.18); }}
-            QPushButton#impNav {{ text-align:center; min-width:92px; padding:3px 8px; }}
             QPushButton#impZoom {{
                 color:rgba(255,255,255,.68); border:1px solid rgba(255,255,255,.12);
                 background:rgba(255,255,255,.035); padding:0 8px; text-align:center;
@@ -1936,11 +1608,11 @@ class ImpositionDialog(QDialog):
             QHeaderView::section {{ background:rgba(255,196,0,.10); color:{YELLOW}; border:0; padding:5px; }}
             QProgressBar {{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:5px; text-align:center; color:white; }}
             QProgressBar::chunk {{ background:rgba(255,196,0,.55); border-radius:4px; }}
-            QWidget#impPreview {{ border:1px solid rgba(255,196,0,.18); border-radius:7px; background:#080a0d; }}
-            QLabel#impSummary {{ color:rgba(255,255,255,.43); font-size:9px; }}
-            QLabel#impPlansTotal {{ color:rgba(255,255,255,.43); font-size:9px; }}
+            QWidget#impPreview {{ border:1px solid rgba(255,196,0,.18); border-radius:7px; background:{TOOL_BACKGROUND}; }}
+            QLabel#impSummary {{ color:rgba(255,255,255,.43); font-size:10px; }}
+            QLabel#impPlansTotal {{ color:rgba(255,255,255,.43); font-size:10px; }}
             QLineEdit#impFilename {{ color:{YELLOW}; background:rgba(255,196,0,.04); border-color:rgba(255,196,0,.18); }}
-            QLabel#impBleedWarning {{ color:#FF6262; background:transparent; border:0; padding:0; font-size:9px; font-weight:700; }}
+            QLabel#impBleedWarning {{ color:#FF6262; background:transparent; border:0; padding:0; font-size:10px; font-weight:700; }}
             QLabel#impSheetLabel {{ color:rgba(255,255,255,.72); }}'''
             + TOOL_STANDARD_QSS
         )

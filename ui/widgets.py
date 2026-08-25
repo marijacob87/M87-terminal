@@ -97,34 +97,6 @@ class HorizontalResizeGrip(QWidget):
         super().mouseMoveEvent(event)
 
 
-class MetallicRainbowLabel(QLabel):
-    """Mantido por compatibilidade com outras telas do projeto."""
-
-    def __init__(self, text="", parent=None):
-        super().__init__(text, parent)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-
-    def _gradient(self, rect):
-        gradient = QLinearGradient(rect.left(), rect.center().y(), rect.right(), rect.center().y())
-        for position, color in (
-            (0.00, "#FF4F55"), (0.16, "#FFD166"), (0.32, "#54E38E"),
-            (0.50, "#36C5F0"), (0.68, "#587BFF"), (0.84, "#C06CFF"),
-            (1.00, "#FF4F91"),
-        ):
-            gradient.setColorAt(position, QColor(color))
-        return gradient
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setRenderHint(QPainter.TextAntialiasing, True)
-        rect = QRectF(self.contentsRect())
-        painter.setFont(self.font())
-        painter.setPen(QPen(self._gradient(rect), 1))
-        painter.drawText(rect, int(self.alignment()), self.text())
-
-
 class CommandRow(QWidget):
     def __init__(self, label, code, on_execute):
         super().__init__()
@@ -181,6 +153,24 @@ class CommandRow(QWidget):
             QLabel#commandLabel { color: rgb(255, 239, 150); font-size: 11px; font-weight: 400; }
         """)
 
+    def set_keyboard_selected_style(self):
+        self.setStyleSheet("""
+            QWidget#commandRow {
+                border-radius: 5px;
+                background-color: rgba(255, 196, 0, 0.14);
+            }
+            QLabel#commandCode {
+                color: rgb(255, 221, 40);
+                font-size: 11px;
+                font-weight: 700;
+            }
+            QLabel#commandLabel {
+                color: rgb(255, 239, 150);
+                font-size: 11px;
+                font-weight: 500;
+            }
+        """)
+
     def enter_text(self, event):
         self.is_hovering_text = True
         self.set_hover_style()
@@ -208,7 +198,7 @@ class SectionLabel(QLabel):
         self.setStyleSheet("""
             QLabel#sectionLabel {
                 color: rgba(255, 255, 255, 0.52);
-                font-size: 9px;
+                font-size: 10px;
                 font-weight: 500;
                 letter-spacing: 1px;
                 padding: 0px 2px;

@@ -1,3 +1,4 @@
+import json
 import urllib.request
 from datetime import datetime
 
@@ -7,14 +8,21 @@ from core.network_volumes import get_network_status
 
 def get_porto_temp():
     try:
-        url = "https://wttr.in/Porto?format=%t"
+        url = (
+            "https://api.open-meteo.com/v1/forecast"
+            "?latitude=41.1579&longitude=-8.6291"
+            "&current=temperature_2m"
+            "&temperature_unit=celsius"
+            "&timezone=Europe%2FLisbon"
+        )
 
         with urllib.request.urlopen(url, timeout=3) as response:
-            temp = response.read().decode("utf-8").strip()
+            data = json.loads(response.read().decode("utf-8"))
 
-        return temp.replace("+", "")
+        temperature = round(float(data["current"]["temperature_2m"]))
+        return f"{temperature}°C"
 
-    except Exception:
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
         return "--°C"
 
 

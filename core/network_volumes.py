@@ -66,9 +66,19 @@ def _mounted_smb_paths():
 
 
 def _mount_responds(path, timeout):
+    """Força uma leitura do SMB; consultar apenas metadados pode usar cache."""
     try:
         result = subprocess.run(
-            ["/usr/bin/stat", "-f", "%d", path],
+            [
+                "/usr/bin/find",
+                path,
+                "-mindepth",
+                "1",
+                "-maxdepth",
+                "1",
+                "-print",
+                "-quit",
+            ],
             capture_output=True,
             text=True,
             timeout=timeout,

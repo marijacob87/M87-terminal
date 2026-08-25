@@ -9,7 +9,7 @@ from typing import Iterable
 
 
 PLAN_PATTERN = re.compile(
-    r"(?<!\d)(\d+)\s*(?:planos|pl)(?![A-Za-zÀ-ÿ])",
+    r"(?<!\d)(\d+)\s*(?:planos|pl|p)(?![A-Za-zÀ-ÿ])",
     re.IGNORECASE,
 )
 

@@ -248,6 +248,46 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(before_info.pages[0].media, after_info.pages[0].media)
         self.assertEqual(before_info.pages[0].trim, after_info.pages[0].trim)
 
+    def test_cleanup_splits_grouped_crop_mark_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.pdf"
+            document = fitz.open()
+            page = document.new_page(width=mm(106), height=mm(56))
+            page.set_trimbox(fitz.Rect(mm(10), mm(10), mm(96), mm(46)))
+            document.save(source)
+            document.close()
+            with pikepdf.Pdf.open(source, allow_overwriting_input=True) as pdf:
+                page = pdf.pages[0]
+                grouped_paths = pdf.make_stream(
+                    (
+                        "q 0 0 0 RG 0.25 w "
+                        f"{mm(20)} {mm(5)} m {mm(30)} {mm(5)} l "
+                        f"{mm(20)} {mm(51)} m {mm(30)} {mm(51)} l "
+                        f"{mm(20)} {mm(20)} m {mm(30)} {mm(20)} l S Q\n"
+                    ).encode("ascii")
+                )
+                page.obj.Contents = grouped_paths
+                pdf.save(source)
+
+            output = root / "output.pdf"
+            apply_geometry(
+                source,
+                output,
+                GeometrySettings(remove_outside_trim=True),
+                [0],
+            )
+            result = fitz.open(output)
+            line_items = [
+                item
+                for drawing in result[0].get_drawings()
+                for item in drawing["items"]
+                if item[0] == "l"
+            ]
+            result.close()
+
+        self.assertEqual(len(line_items), 1)
+
     def test_preserves_icc_but_removes_unvalidated_pdfx_declaration(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

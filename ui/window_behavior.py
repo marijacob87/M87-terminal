@@ -27,9 +27,15 @@ class WindowBehaviorMixin:
         super().resizeEvent(event)
 
     def schedule_state_save(self):
+        from core.preferences import preference
+        if not preference("general/remember_geometry", True):
+            return
         self.save_state_timer.start(500)
 
     def save_current_state(self):
+        from core.preferences import preference
+        if not preference("general/remember_geometry", True):
+            return
         geometry = self.geometry()
         # Nunca grava no estado uma altura temporária de conteúdo variável.
         # Assim o Terminal também volta compacto após reiniciar.

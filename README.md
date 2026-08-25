@@ -16,7 +16,6 @@ e arrastar PDFs diretamente para a janela.
 - imposição de PDFs em modo individual ou lote;
 - cálculo de montagem;
 - geração e leitura de QR Code e EAN-13;
-- atualização local por pacote ZIP com backup e rollback.
 
 ## Requisitos
 
@@ -39,6 +38,17 @@ Para iniciar:
 ./run_m87.sh
 ```
 
+Para usar como aplicativo nativo do macOS e exibir **M87 Terminal** na barra
+de menus, gere o bundle vinculado à instalação atual:
+
+```bash
+./scripts/build_macos_app.sh
+open "dist/M87 Terminal.app"
+```
+
+O bundle em `dist/` usa diretamente os arquivos deste projeto, mantendo o
+fluxo de desenvolvimento ligado ao código-fonte atual.
+
 O interpretador também pode ser definido explicitamente:
 
 ```bash
@@ -57,9 +67,7 @@ Execute a regressão antes de entregar alterações:
 "$HOME/.venvs/m87_terminal/bin/python" -m compileall -q main.py core ui scripts tests
 ```
 
-As regras obrigatórias do projeto estão em [AGENTS.md](AGENTS.md). O formato
-dos pacotes de atualização está documentado em
-[000_LEIA_PRIMEIRO_M87.md](000_LEIA_PRIMEIRO_M87.md).
+As regras obrigatórias do projeto estão em [AGENTS.md](AGENTS.md).
 
 ## Estrutura
 
@@ -74,6 +82,7 @@ ui/         janelas, widgets e controladores da interface
 Documentação adicional:
 
 - [Arquitetura](docs/ARCHITECTURE.md)
+- [Sistema visual](docs/VISUAL_SYSTEM.md)
 - [Desenvolvimento](docs/DEVELOPMENT.md)
 - [Validação de PDFs](docs/PDF_VALIDATION.md)
 - [Roadmap](docs/ROADMAP.md)

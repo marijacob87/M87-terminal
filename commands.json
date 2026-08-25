@@ -99,24 +99,10 @@
   },
   {
     "section": "Ferramentas",
-    "code": "GEO",
-    "label": "Geometria",
+    "code": "PDF",
+    "label": "Resumo PDF",
     "type": "internal",
-    "value": "geometry"
-  },
-  {
-    "section": "Ferramentas",
-    "code": "IMP",
-    "label": "Imposição",
-    "type": "internal",
-    "value": "imposition"
-  },
-  {
-    "section": "Ferramentas",
-    "code": "ORG",
-    "label": "Organizar Páginas",
-    "type": "internal",
-    "value": "organize_pages"
+    "value": "pdf_workspace"
   },
   {
     "section": "Ferramentas",

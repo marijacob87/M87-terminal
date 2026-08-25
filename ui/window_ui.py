@@ -1,9 +1,10 @@
 import os
 import subprocess
+import math
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPen
+from PySide6.QtCore import QPointF, QSettings, Qt, QTimer
+from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QGridLayout,
@@ -26,26 +27,36 @@ from ui.widgets import (
 )
 
 
-class ChatGptIcon(QLabel):
-    """Símbolo vetorial monocromático, sem imagem ou fundo colorido."""
+class SettingsIcon(QWidget):
+    """Engrenagem com lupa em traços brancos para a barra do Terminal."""
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor(175, 175, 175, 224), 0.75)
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
-        painter.setPen(pen)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(QPen(QColor(175, 175, 175, 252), 1.05,
+                            Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         painter.setBrush(Qt.NoBrush)
-        painter.translate(self.rect().center())
-        painter.translate(0, 1)
 
-        petal = QRectF(-1.45, -4.1, 2.9, 4.8)
-        for angle in range(0, 360, 60):
-            painter.save()
-            painter.rotate(angle)
-            painter.drawEllipse(petal)
-            painter.restore()
+        center = QPointF(11.2, 7.2)
+        gear = QPainterPath()
+        for index in range(32):
+            angle = math.radians(-90 + index * 11.25)
+            radius = 5.0 if index % 4 in (0, 1) else 3.9
+            point = QPointF(
+                center.x() + math.cos(angle) * radius,
+                center.y() + math.sin(angle) * radius,
+            )
+            if index == 0:
+                gear.moveTo(point)
+            else:
+                gear.lineTo(point)
+        gear.closeSubpath()
+        painter.drawPath(gear)
+        painter.drawEllipse(center, 1.6, 1.6)
+
+        lens_center = QPointF(6.6, 10.2)
+        painter.drawEllipse(lens_center, 3.1, 3.1)
+        painter.drawLine(QPointF(4.4, 12.4), QPointF(2.3, 14.5))
 
 
 class WindowUiMixin:
@@ -63,7 +74,12 @@ class WindowUiMixin:
         self.setAcceptDrops(True)
         self.setMinimumSize(APP_MIN_WIDTH, APP_MIN_HEIGHT)
 
-        state = load_window_state()
+        remember = QSettings("M87Tools", "M87Terminal").value(
+            "general/remember_geometry", True, type=bool
+        )
+        state = load_window_state() if remember else {
+            "width": APP_MIN_WIDTH, "height": APP_MIN_HEIGHT,
+        }
         width = max(APP_MIN_WIDTH, state["width"])
         height = max(APP_MIN_HEIGHT, state["height"])
 
@@ -102,47 +118,12 @@ class WindowUiMixin:
         self.title.setObjectName("title")
         self.title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        self.code_button = QLabel("</>")
-        self.code_button.setObjectName("codeButton")
-        self.code_button.setCursor(QCursor(Qt.PointingHandCursor))
-        self.code_button.setToolTip("Abrir projeto no VS Code")
-        self.code_button.mousePressEvent = lambda event: self.open_project_in_vscode()
-
-        self.codex_button = ChatGptIcon()
-        self.codex_button.setObjectName("codexButton")
-        self.codex_button.setCursor(QCursor(Qt.PointingHandCursor))
-        self.codex_button.setToolTip("Abrir Codex para alterar o M87")
-        self.codex_button.setAlignment(Qt.AlignCenter)
-        self.codex_button.setFixedSize(17, 18)
-        self.codex_button.mousePressEvent = lambda event: self.open_codex()
-
-        self.reference_button = QLabel("▤")
-        self.reference_button.setObjectName("referenceButton")
-        self.reference_button.setCursor(QCursor(Qt.PointingHandCursor))
-        self.reference_button.setToolTip("M87 Reference")
-        self.reference_button.mousePressEvent = lambda event: self.open_reference()
-
-        self.reload_button = QLabel("↻")
-        self.reload_button.setObjectName("reloadButton")
-        self.reload_button.setCursor(QCursor(Qt.PointingHandCursor))
-        self.reload_button.setToolTip("Reload Terminal")
-        self.reload_button.mousePressEvent = lambda event: self.restart_app()
-
-        self.minimize_button = QLabel("—")
-        self.minimize_button.setObjectName("minimizeButton")
-        self.minimize_button.setCursor(QCursor(Qt.PointingHandCursor))
-        self.minimize_button.setToolTip("Minimizar")
-        self.minimize_button.mousePressEvent = lambda event: self.showMinimized()
-
-        for button, width in (
-            (self.code_button, 22),
-            (self.codex_button, 17),
-            (self.reference_button, 17),
-            (self.reload_button, 17),
-            (self.minimize_button, 17),
-        ):
-            button.setFixedSize(width, 18)
-            button.setAlignment(Qt.AlignCenter)
+        self.settings_button = SettingsIcon()
+        self.settings_button.setObjectName("settingsButton")
+        self.settings_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.settings_button.setToolTip("Configurações  ⌘,")
+        self.settings_button.setFixedSize(18, 18)
+        self.settings_button.mousePressEvent = lambda event: self.open_settings()
 
         self.title_container = DarkMetallicTitleBar()
         title_layout = QHBoxLayout(self.title_container)
@@ -150,11 +131,7 @@ class WindowUiMixin:
         title_layout.setSpacing(0)
         title_layout.addWidget(self.title)
         title_layout.addStretch()
-        title_layout.addWidget(self.code_button)
-        title_layout.addWidget(self.codex_button)
-        title_layout.addWidget(self.reference_button)
-        title_layout.addWidget(self.reload_button)
-        title_layout.addWidget(self.minimize_button)
+        title_layout.addWidget(self.settings_button)
 
         self.main_layout.addWidget(self.title_container)
 
@@ -167,22 +144,36 @@ class WindowUiMixin:
         self.content_layout.setAlignment(Qt.AlignTop)
         self.main_layout.addWidget(self.content_container)
 
-    def open_reference(self):
-        from ui.reference_dialog import ReferenceDialog
+    def open_settings_section(self, section_id):
+        self.open_settings()
+        self.settings_dialog.show_section(section_id)
 
-        if getattr(self, "reference_dialog", None):
-            try:
-                self.reference_dialog.show()
-                self.reference_dialog.raise_()
-                self.reference_dialog.activateWindow()
-                return
-            except RuntimeError:
-                self.reference_dialog = None
+    def open_settings(self):
+        from ui.settings_dialog import SettingsDialog
 
-        self.reference_dialog = ReferenceDialog(self)
-        self.reference_dialog.show()
-        self.reference_dialog.raise_()
-        self.reference_dialog.activateWindow()
+        dialog = getattr(self, "settings_dialog", None)
+        if dialog is None:
+            dialog = SettingsDialog(self)
+            dialog.librariesChanged.connect(self._refresh_shared_libraries)
+            self.settings_dialog = dialog
+        dialog.navigation.setCurrentRow(dialog._key_to_row["general"])
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _refresh_shared_libraries(self):
+        tools = getattr(self, "tools_dialog", None)
+        if tools is None:
+            return
+        try:
+            geometry = tools._pages.get("GEO")
+            if geometry and hasattr(geometry, "_reload_preset_combos"):
+                geometry._reload_preset_combos()
+            imposition = tools._pages.get("IMP")
+            if imposition and hasattr(imposition, "refresh_paper_library"):
+                imposition.refresh_paper_library()
+        except RuntimeError:
+            pass
 
     def open_project_in_vscode(self):
         project_path = os.path.dirname(
@@ -288,21 +279,35 @@ class WindowUiMixin:
 
         self.command_sections = {}
         self.section_labels = {}
+        self.all_command_rows = {}
+        all_sections = []
+        raw_hidden = QSettings("M87Tools", "M87Terminal").value(
+            "terminal/hidden_commands", []
+        )
+        from core.command_preferences import normalize_code_list
+
+        hidden_codes = set(normalize_code_list(raw_hidden))
 
         for item in self.commands:
             code = item.get("code", "").upper()
             label = item.get("label", code)
             section = item.get("section", "Comandos")
+            if section not in all_sections:
+                all_sections.append(section)
 
             if not code:
                 continue
 
             row = CommandRow(label, code, self.execute_command)
             self.rows[code] = row
+            self.all_command_rows[code] = (section, row)
+            if code in hidden_codes:
+                row.hide()
+                continue
             self.command_widgets.append(row)
             self.command_sections.setdefault(section, []).append(row)
 
-        for section in self.command_sections:
+        for section in all_sections:
             self.section_labels[section] = SectionLabel(section)
 
         self.content_layout.addWidget(self.commands_container)
@@ -317,6 +322,41 @@ class WindowUiMixin:
         self.divider_2.setFixedHeight(18)
         self.divider_2.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.content_layout.addWidget(self.divider_2)
+
+    def apply_command_visibility(self, visible_codes):
+        visible = {str(code).upper() for code in visible_codes}
+        all_codes = set(self.all_command_rows)
+        hidden = sorted(all_codes - visible)
+        settings = QSettings("M87Tools", "M87Terminal")
+        settings.setValue("terminal/hidden_commands", hidden)
+        settings.setValue(
+            "terminal/command_order",
+            [
+                str(item.get("code", "")).strip().upper()
+                for item in self.commands
+                if str(item.get("code", "")).strip()
+            ],
+        )
+        settings.sync()
+
+        self.command_widgets = []
+        self.command_sections = {}
+        for item in self.commands:
+            code = item.get("code", "").upper()
+            entry = self.all_command_rows.get(code)
+            if not entry:
+                continue
+            section, row = entry
+            row.hide()
+            if code in visible:
+                self.command_widgets.append(row)
+                self.command_sections.setdefault(section, []).append(row)
+
+        self.current_columns = None
+        self.rebuild_command_grid()
+        for row in self.command_widgets:
+            row.show()
+        self.ajustar_altura_ao_conteudo()
 
     def build_input(self):
         self.input = TerminalInput("m87@ -")

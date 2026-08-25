@@ -7,7 +7,6 @@
 - caminhos de configuração independentes da pasta de lançamento;
 - gravação atômica do estado da janela;
 - consultas de status e Finder fora da thread gráfica;
-- rollback automático de atualizações incompletas;
 - dependências nativas do macOS documentadas.
 
 ### Qualidade
@@ -27,4 +26,3 @@
 - contexto de PDF por drag and drop;
 - ferramentas IMP, GEO, MON e BAR;
 - análise, renomeação, intercalação e conversão em curvas;
-- atualização local por pacote ZIP.

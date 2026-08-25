@@ -12,7 +12,7 @@ PADRAO_GRAFICA = re.compile(
     re.IGNORECASE,
 )
 PADRAO_IMP = re.compile(
-    r"^(?P<units>\d+)un(?:\s+cada arte)?(?:\s+cada_|\s+)(?P<plans>\d+)pl_"
+    r"^(?P<units>\d+)un(?:\s+cada arte)?(?:\s+cada_|\s+)(?P<plans>\d+)(?:Planos|pl|p)_"
     r"(?P<paper>[^_]+)_(?P<base>.+?)_"
     r"(?P<date>\d{8})(?:_\d+|\s+\(\d+\))?$",
     re.IGNORECASE,

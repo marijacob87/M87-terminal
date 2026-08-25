@@ -192,7 +192,24 @@ def analyze_color_space(color_space, result, color_map=None):
 
         color_type = pdf_name_to_text(color_space[0])
 
-        if color_type == "Separation" and len(color_space) >= 3:
+        if color_type == "ICCBased" and len(color_space) >= 2:
+            components = int(color_space[1].get("/N", 0))
+            if components == 4:
+                result["CMYK"] = True
+                result["C"] = result["M"] = True
+                result["Y"] = result["K"] = True
+            elif components == 3:
+                result["RGB"] = True
+            elif components == 1:
+                result["GRAY"] = True
+
+        elif color_type in {"CalRGB", "Lab"}:
+            result["RGB"] = True
+
+        elif color_type == "Indexed" and len(color_space) >= 2:
+            analyze_color_space(color_space[1], result, color_map)
+
+        elif color_type == "Separation" and len(color_space) >= 3:
             color_name = pdf_name_to_text(color_space[1])
 
             mark_process_color(color_name, result)
@@ -349,10 +366,10 @@ def analyze_scn(values, current_color_space, color_map, result):
                     if tint > 0:
                         mark_process_color(color_name, result)
 
-        elif color_type == "ICCBased":
-            text = str(color_space)
+        elif color_type == "ICCBased" and len(color_space) >= 2:
+            components = int(color_space[1].get("/N", 0))
 
-            if "DeviceCMYK" in text and len(values) >= 4:
+            if components == 4 and len(values) >= 4:
                 mark_cmyk(
                     values[-4],
                     values[-3],
@@ -361,11 +378,11 @@ def analyze_scn(values, current_color_space, color_map, result):
                     result,
                 )
 
-            elif "DeviceRGB" in text and len(values) >= 3:
+            elif components == 3 and len(values) >= 3:
                 if any(value > 0 for value in values[-3:]):
                     result["RGB"] = True
 
-            elif "DeviceGray" in text and values:
+            elif components == 1 and values:
                 if values[-1] > 0:
                     result["GRAY"] = True
 
@@ -375,6 +392,15 @@ def analyze_scn(values, current_color_space, color_map, result):
 
 def analyze_pdf_stream(content, color_map, result):
     text = content.decode("latin-1", errors="ignore")
+    # Imagens inline declaram o espaço entre BI/ID, sem operador de pintura.
+    if "/DeviceCMYK" in text:
+        result["CMYK"] = True
+        result["C"] = result["M"] = True
+        result["Y"] = result["K"] = True
+    if "/DeviceRGB" in text:
+        result["RGB"] = True
+    if "/DeviceGray" in text:
+        result["GRAY"] = True
     tokens = tokenize_pdf_stream(text)
 
     operands = []
@@ -572,6 +598,9 @@ def analyze_xobjects(
 
 def analyze_image_xobject(xobject, result):
     color_space = xobject.get("/ColorSpace")
+    if isinstance(color_space, pikepdf.Array):
+        analyze_color_space(color_space, result)
+        return
     color_name = pdf_name_to_text(color_space)
 
     if "DeviceCMYK" in color_name:
@@ -808,83 +837,3 @@ def analisar_pdf(pdf_path):
 
     finally:
         document.close()
-
-
-# ============================================================
-# TEXTOS PARA A INTERFACE
-# ============================================================
-
-def resumo_pdf(info):
-    page_count = info.get("paginas", 0)
-
-    pages_text = (
-        "1 página"
-        if page_count == 1
-        else f"{page_count} páginas"
-    )
-
-    return (
-        f'{info.get("nome", "PDF")}\n'
-        f'{pages_text} - '
-        f'{info.get("peso", "Não informado")}\n'
-        f'(Trim) {info.get("medida_trim", "Não informado")} \n'
-        
-    )
-
-
-def info_pdf_completa(info):
-    colors = info.get("cores", {})
-    spots = colors.get("SPOTS", [])
-
-    spots_text = (
-        ", ".join(spots)
-        if spots
-        else "Nenhuma detectada"
-    )
-
-    separations = []
-
-    for label, key in [
-        ("Ciano", "C"),
-        ("Magenta", "M"),
-        ("Amarelo", "Y"),
-        ("Preto", "K"),
-        ("RGB", "RGB"),
-        ("Escala de cinza", "GRAY"),
-    ]:
-        mark = "✓" if colors.get(key) else "□"
-        separations.append(f"{mark} {label}")
-
-    special_mark = "✓" if spots else "□"
-    separations.append(
-        f"{special_mark} Pantones / especiais"
-    )
-
-    trim_warning = ""
-
-    if not info.get("tem_trim"):
-        trim_warning = (
-            "\n\n⚠️ TrimBox não definido. "
-            "Usando MediaBox como referência."
-        )
-
-    return (
-        f'Nome do arquivo\n{info.get("nome", "Não informado")}\n\n'
-        f'Peso\n{info.get("peso", "Não informado")}\n\n'
-        f'Orientação\n{info.get("orientacao", "Não informado")}\n\n'
-        f'Criado em\n{info.get("criado_em", "Não informado")}\n\n'
-        f'Data de criação\n{info.get("data_criacao", "Não informado")}\n\n'
-        f'Data de modificação\n{info.get("data_modificacao", "Não informado")}\n\n'
-        f'Quantidade de páginas\n{info.get("paginas", "Não informado")}\n\n'
-        f'Medida do PDF\n{info.get("medida_pdf", "Não informado")}\n\n'
-        f'Medida da marca de corte / Trim\n'
-        f'{info.get("medida_trim", "Não informado")}\n\n'
-        f'Medida do Bleed\n{info.get("medida_bleed", "Não informado")}\n\n'
-        f'Medida do Crop\n{info.get("medida_crop", "Não informado")}\n\n'
-        f'Marcas de corte detectadas\n'
-        f'{"Sim" if info.get("marcas_corte") else "Não"}\n\n'
-        f'Separações detectadas\n'
-        f'{"\n".join(separations)}\n\n'
-        f'Pantones / cores especiais\n{spots_text}'
-        f'{trim_warning}'
-    )

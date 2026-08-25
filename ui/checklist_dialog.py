@@ -590,13 +590,13 @@ class ChecklistDialog(QDialog):
             QWidget#checklistSummary { background: transparent; }
             QLabel#checklistHeading {
                 color: rgba(255, 255, 255, 0.76);
-                font-size: 9px;
+                font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 1px;
             }
             QLabel#checklistCounter {
                 color: #FFC400;
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: 700;
             }
             QProgressBar#checklistProgress {
@@ -613,7 +613,7 @@ class ChecklistDialog(QDialog):
             }
             QLabel#checklistProgressMessage {
                 color: rgba(180, 180, 180, 0.70);
-                font-size: 9px;
+                font-size: 10px;
             }
             QLabel#checklistProgressMessage[state="complete"] {
                 color: #51E6A0;
@@ -640,7 +640,7 @@ class ChecklistDialog(QDialog):
                 border: none;
                 border-radius: 5px;
                 text-align: left;
-                font-size: 9px;
+                font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 0.5px;
                 padding: 7px 4px 6px 4px;
@@ -686,7 +686,7 @@ class ChecklistDialog(QDialog):
             }
             QCheckBox#checklistItem {
                 color: rgba(214, 214, 214, 0.86);
-                font-size: 10px;
+                font-size: 11px;
                 spacing: 6px;
                 padding: 4px 2px;
             }
@@ -759,7 +759,7 @@ class ChecklistDialog(QDialog):
                 border: 1px solid rgba(255, 196, 0, 0.25);
                 border-radius: 6px;
                 padding: 7px 10px;
-                font-size: 9px;
+                font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 0.5px;
             }

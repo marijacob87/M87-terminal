@@ -42,7 +42,7 @@ def get_suggestions(query, commands):
     # na lista visual de comandos.
     lower_query = query.lower()
     if (
-        lower_query in {"#zip", "#code", "#git"}
+        lower_query in {"#code", "#git"}
         or lower_query.startswith("#git ")
     ):
         return []

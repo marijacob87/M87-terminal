@@ -32,7 +32,7 @@ def publish_git_update(commit_message: str) -> GitPublishResult:
     if not message:
         return GitPublishResult(
             False,
-            "Escreva a atualização depois de #git.",
+            "Escreva a alteração depois de #git.",
         )
 
     if not PROJECT_PATH.is_dir():
@@ -79,7 +79,7 @@ def publish_git_update(commit_message: str) -> GitPublishResult:
 
         return GitPublishResult(
             True,
-            "✓ Atualização enviada para o GitHub\n"
+            "✓ Alterações enviadas para o GitHub\n"
             f'Commit: "{message}"',
         )
 
@@ -96,5 +96,5 @@ def publish_git_update(commit_message: str) -> GitPublishResult:
     except Exception as error:
         return GitPublishResult(
             False,
-            f"Não foi possível enviar a atualização.\n{error}",
+            f"Não foi possível enviar as alterações.\n{error}",
         )

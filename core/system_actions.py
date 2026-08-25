@@ -137,23 +137,6 @@ def _release_safe_memory() -> bool:
         return False
 
 
-def _fresh_regular_apps_by_pid():
-    """
-    Faz uma nova leitura dos aplicativos abertos para evitar usar
-    objetos antigos do NSWorkspace.
-    """
-    apps = {}
-
-    for app in _regular_apps():
-        try:
-            pid = int(app.processIdentifier())
-            apps[pid] = app
-        except Exception:
-            continue
-
-    return apps
-
-
 def _pid_is_really_running(pid: int) -> bool:
     """
     Confirma diretamente no macOS se o processo ainda existe.
