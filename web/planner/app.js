@@ -2,6 +2,14 @@ const DAY_NAMES = ["SEG", "TER", "QUA", "QUI", "SEX"];
 const TAGS = { Arte: "#ffc400", Duplo: "#12c8b0", GTO: "#f5008d", Konica: "#8b67c5", SM: "#00a9e0", Pessoal: "#efefef" };
 const STORE_KEY = "m87-planner-web-v1";
 const PAIRING_KEY = "m87-planner-pairing-key";
+const query = new URLSearchParams(location.search);
+if (query.get("reset") === "1") {
+  localStorage.removeItem(STORE_KEY);
+  localStorage.removeItem(PAIRING_KEY);
+  query.delete("reset");
+  const suffix = query.toString();
+  history.replaceState({}, "", `${location.pathname}${suffix ? `?${suffix}` : ""}${location.hash}`);
+}
 const emptyTask = () => ({ id: crypto.randomUUID(), client:"", text:"", notes:"", done:false, tag:"", updatedAt:Date.now() });
 const blankLines = (count = 32) => Array.from({ length:count }, emptyTask);
 const startOfWeek = (value = new Date()) => { const d = new Date(value); d.setHours(12,0,0,0); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return d; };
@@ -16,9 +24,9 @@ class LocalAdapter {
 
 class RemoteAdapter {
   constructor(endpoint) { this.endpoint=endpoint; this.pending=null; this.timer=null; }
-  headers() { return {"X-M87-Workspace-Key":localStorage.getItem(PAIRING_KEY) || ""}; }
+  headers() { return {"Accept":"application/json","Cache-Control":"no-cache","X-M87-Workspace-Key":localStorage.getItem(PAIRING_KEY) || ""}; }
   async pull() {
-    const response=await fetch(this.endpoint, {headers:this.headers()});
+    const response=await fetch(this.endpoint, {headers:this.headers(),cache:"no-store"});
     if (!response.ok) { const error=new Error(`sync ${response.status}`); error.status=response.status; throw error; }
     return response.json();
   }
@@ -32,16 +40,16 @@ class RemoteAdapter {
     const payload=this.pending; this.pending=null;
     try {
       const response=await fetch(this.endpoint, {method:"PUT",headers:{"Content-Type":"application/json",...this.headers()},body:JSON.stringify(payload)});
-      if (!response.ok) throw new Error(`sync ${response.status}`);
+      if (!response.ok) { const error=new Error(`sync ${response.status}`); error.status=response.status; throw error; }
     } catch (error) { this.pending=payload; console.warn("M87 Planner offline; sync will retry on the next change.", error); }
   }
 }
 
 class Planner {
-  constructor() { this.adapter=new LocalAdapter(); this.data=this.adapter.load(); this.sync=location.hostname.endsWith(".workers.dev") ? new RemoteAdapter("/api/planner") : null; this.current=startOfWeek(); this.dragged=null; this.selectedTag=""; this.editing=null; this.ensureWeek(); this.bindDialog(); this.bindPairing(); this.render(); this.pullRemote(); }
-  async pullRemote() { if (!this.sync) return; try { const remote=await this.sync.pull(); if (remote?.weeks && remote?.approvals) { this.data=remote; this.adapter.save(this.data); this.ensureWeek(); this.render(); } } catch (error) { if (error.status===401) this.openPairing(); else console.warn("M87 Planner iniciou offline.", error); } }
+  constructor() { this.adapter=new LocalAdapter(); this.data=this.adapter.load(); this.sync=location.hostname.endsWith(".workers.dev") ? new RemoteAdapter("/api/planner") : null; this.remote_ready=!this.sync; this.current=startOfWeek(); this.dragged=null; this.selectedTag=""; this.editing=null; this.ensureWeek(); this.bindDialog(); this.bindPairing(); this.render(); this.pullRemote(); if (this.sync) window.setInterval(()=>{ if (!this.sync.pending) this.pullRemote(); },8000); }
+  async pullRemote() { if (!this.sync || this.sync.pending) return; try { const remote=await this.sync.pull(); if (this.sync.pending) return; if (remote?.weeks && remote?.approvals) { this.data=remote; this.remote_ready=true; this.adapter.save(this.data); this.ensureWeek(); this.render(); } } catch (error) { if (error.status===401) this.openPairing(); else console.warn("M87 Planner iniciou offline.", error); } }
   ensureWeek() { const k=keyOf(this.current); if (!this.data.weeks[k]) this.data.weeks[k]=week(this.current); const current=this.data.weeks[k]; for (const day of DAY_NAMES) { current.days[day] ||= []; while (current.days[day].length<32) current.days[day].push(emptyTask()); } return current; }
-  save() { this.adapter.save(this.data); this.sync?.queue?.(this.data); }
+  save() { this.adapter.save(this.data); if (this.remote_ready) this.sync?.queue?.(this.data); }
   currentWeek() { return this.ensureWeek(); }
   render() { const current=this.currentWeek(); const root=document.querySelector("#app"); root.innerHTML=`<section class="planner"><div class="bar">M87 - TO DO</div><div class="head"><div class="planner-title">PLANNER SEMANAL ${this.current.getFullYear()}</div><div class="week-nav"><button data-week="-1" aria-label="Semana anterior">‹</button><button data-week="0">HOJE</button><button data-week="1" aria-label="Próxima semana">›</button></div><select class="date-picker" aria-label="Data"><option>${this.dateText(this.current)}</option></select><button class="active">CANETA</button><button>BORRACHA</button></div><div class="todo">${current.priorities.map((task,i)=>this.todoRow(task,i)).join("")}</div><section class="days">${DAY_NAMES.map((name,index)=>this.dayColumn(name,index)).join("")}</section><section class="bottom"><section class="panel"><div class="calendar">${[0,1].map(offset=>this.month(addDays(this.current,offset*31))).join("")}</div></section><section class="panel"><div class="panel-title">AGUARDANDO</div><div class="approvals" data-zone="approvals">${this.data.approvals.map(task=>this.taskRow(task,"approvals")).join("")}</div></section><section class="panel"><div class="panel-title">NOTAS DA SEMANA</div><textarea class="notes" placeholder="Notas da semana">${this.escape(current.notes || "")}</textarea></section></section></section>`; this.bindPage(); }
   dateText(date) { return date.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}); }

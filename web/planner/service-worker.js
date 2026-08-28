@@ -1,4 +1,4 @@
-const CACHE = "m87-planner-v1";
+const CACHE = "m87-planner-v2";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))));
