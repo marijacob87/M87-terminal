@@ -26,6 +26,7 @@ def upload(endpoint, payload, pairing_key):
         headers={
             "Content-Type": "application/json; charset=utf-8",
             "X-M87-Workspace-Key": pairing_key,
+            "User-Agent": "M87-Planner-Importer/1.0",
         },
     )
     with urlopen(request, timeout=20) as response:
