@@ -17,6 +17,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.export_planner_to_web import export_data
 
+DEFAULT_STORAGE_DIR = (
+    Path.home() / "Library/Application Support/M87Tools/M87 Terminal"
+)
+
+
+def resolve_storage_dir(storage_dir):
+    """Usa a mesma base do aplicativo macOS quando o comando roda no Terminal."""
+    return storage_dir or DEFAULT_STORAGE_DIR
+
 
 def upload(endpoint, payload, pairing_key):
     request = Request(
@@ -36,14 +45,22 @@ def upload(endpoint, payload, pairing_key):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", required=True, help="URL pública, sem /api/planner")
-    parser.add_argument("--storage-dir", type=Path)
+    parser.add_argument(
+        "--storage-dir",
+        type=Path,
+        help="Pasta de dados do Planner; por padrão usa a instalação local do M87.",
+    )
     args = parser.parse_args()
 
     pairing_key = getpass.getpass("Chave de pareamento do Cloudflare: ").strip()
     if not pairing_key:
         raise SystemExit("A chave de pareamento é obrigatória.")
     try:
-        result = upload(args.endpoint, export_data(args.storage_dir), pairing_key)
+        result = upload(
+            args.endpoint,
+            export_data(resolve_storage_dir(args.storage_dir)),
+            pairing_key,
+        )
     except HTTPError as error:
         if error.code == 401:
             raise SystemExit("Chave de pareamento inválida.") from error
