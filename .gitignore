@@ -28,6 +28,9 @@ dist/
 *.tmp
 *.temp
 
+# Configurações privadas do Planner Web
+web/planner/sync-config.js
+
 # Estado local e backup do atualizador
 state.json
 backup/ultimo_backup.zip

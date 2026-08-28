@@ -1,0 +1,12 @@
+name = "m87-planner"
+main = "cloudflare/worker.js"
+compatibility_date = "2026-08-28"
+
+[assets]
+directory = "web/planner"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "m87-planner"
+database_id = "COLE_AQUI_O_ID_DO_D1"

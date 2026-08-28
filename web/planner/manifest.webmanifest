@@ -1,0 +1,9 @@
+{
+  "name": "M87 TO DO — Planner Semanal",
+  "short_name": "M87 TO DO",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "icons": []
+}
