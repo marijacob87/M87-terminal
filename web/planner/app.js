@@ -75,5 +75,5 @@ class Planner {
 }
 
 const planner=new Planner();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js?v=3");
 window.m87Planner=planner;
