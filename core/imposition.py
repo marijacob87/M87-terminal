@@ -468,6 +468,44 @@ def calculate_plans(mode: str, page_count: int, items_per_sheet: int, quantity_e
     return imposed_pages_per_set * quantity_each
 
 
+def build_imposition_groups(
+    mode: str,
+    page_count: int,
+    items_per_sheet: int,
+) -> list[list[int | None]]:
+    """Organiza as páginas de origem nas posições de cada folha.
+
+    No modo ``stacked``, cada posição recebe um bloco contínuo de páginas.
+    Assim, ao cortar uma grade, as pilhas já ficam em ordem de numeração.
+    """
+    if page_count < 1 or items_per_sheet < 1:
+        return []
+    if mode == "repeat":
+        return [[page_index] * items_per_sheet for page_index in range(page_count)]
+
+    sheets = math.ceil(page_count / items_per_sheet)
+    if mode == "stacked":
+        return [
+            [
+                sheet_index + slot_index * sheets
+                if sheet_index + slot_index * sheets < page_count
+                else None
+                for slot_index in range(items_per_sheet)
+            ]
+            for sheet_index in range(sheets)
+        ]
+
+    return [
+        [
+            source_index if source_index < page_count else None
+            for source_index in range(
+                start, start + items_per_sheet,
+            )
+        ]
+        for start in range(0, page_count, items_per_sheet)
+    ]
+
+
 def _safe_filename_part(value: str, fallback: str) -> str:
     clean = " ".join(str(value).strip().split())
     for char in '<>:"/\\|?*':
@@ -580,13 +618,9 @@ def export_imposition(
         if source_metadata:
             output.set_metadata(source_metadata)
 
-        if mode == "repeat":
-            page_groups = [[page_index] * layout.total for page_index in range(source.page_count)]
-        else:
-            page_groups = [
-                list(range(start, min(start + layout.total, source.page_count)))
-                for start in range(0, source.page_count, layout.total)
-            ]
+        page_groups = build_imposition_groups(
+            mode, source.page_count, layout.total
+        )
 
         # PyMuPDF may otherwise honour a restrictive source CropBox even when
         # Como clip=BleedBox é fornecido, expõe temporariamente a MediaBox completa
@@ -600,6 +634,8 @@ def export_imposition(
         for group in page_groups:
             out_page = output.new_page(width=paper_w_pt, height=paper_h_pt)
             for slot_index, source_index in enumerate(group):
+                if source_index is None:
+                    continue
                 if fill_order == "columns":
                     col, row = divmod(slot_index, layout.rows)
                 else:

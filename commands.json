@@ -99,6 +99,13 @@
   },
   {
     "section": "Ferramentas",
+    "code": "TODO",
+    "label": "Planner Semanal",
+    "type": "internal",
+    "value": "weekly_planner"
+  },
+  {
+    "section": "Ferramentas",
     "code": "PDF",
     "label": "Resumo PDF",
     "type": "internal",

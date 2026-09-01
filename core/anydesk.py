@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import threading
 import time
@@ -6,6 +7,9 @@ import unicodedata
 
 
 ANYDESK_APP = "/Applications/AnyDesk.app"
+APPLICATION_SERVICES = (
+    "/System/Library/Frameworks/ApplicationServices.framework"
+)
 
 ANYDESK_MACHINES = [
     {
@@ -19,6 +23,7 @@ ANYDESK_MACHINES = [
     {
         "name": "PRINECT",
         "id": "317203682",
+        "console": True,
     },
 ]
 
@@ -54,6 +59,7 @@ def get_anydesk_suggestions(query=""):
                     "type": "anydesk_machine",
                     "name": name,
                     "id": machine["id"],
+                    "console": machine.get("console", False),
                 }
             )
 
@@ -72,81 +78,142 @@ def get_anydesk_suggestions(query=""):
     return suggestions
 
 
-def _close_new_session_tab():
-    """
-    O endereço anydesk:ID abre a máquina correta, mas deixa
-    uma guia vazia de Nova sessão na frente.
+def _accessibility_is_trusted(prompt=False):
+    """Verifica e, quando pedido, solicita Acessibilidade para o M87."""
+    try:
+        import objc
 
-    Após a ligação carregar, fecha somente a guia atual.
-    A guia da máquina correta permanece aberta.
-    """
+        namespace = {}
+        bundle = objc.loadBundle(
+            "ApplicationServices",
+            namespace,
+            bundle_path=APPLICATION_SERVICES,
+        )
+        objc.loadBundleFunctions(
+            bundle,
+            namespace,
+            [("AXIsProcessTrustedWithOptions", b"Z@")],
+        )
+        objc.loadBundleVariables(
+            bundle,
+            namespace,
+            [("kAXTrustedCheckOptionPrompt", b"@")],
+        )
+        options = {
+            namespace["kAXTrustedCheckOptionPrompt"]: bool(prompt),
+        }
+        return bool(namespace["AXIsProcessTrustedWithOptions"](options))
+    except Exception:
+        return False
 
-    # Tempo para o AnyDesk criar as duas guias.
-    time.sleep(3.5)
 
-    apple_script = r'''
-    tell application "AnyDesk"
-        activate
-    end tell
+def _select_opened_session(confirm_console=False):
+    if not _accessibility_is_trusted(prompt=True):
+        return False
 
-    delay 0.5
-
-    tell application "System Events"
-        if exists process "AnyDesk" then
+    script = r'''
+    on run argv
+        set confirmConsole to item 1 of argv is "true"
+        tell application "AnyDesk" to activate
+        delay 0.15
+        tell application "System Events"
             tell process "AnyDesk"
                 set frontmost to true
+                keystroke "[" using {command down, shift down}
 
-                delay 3
-
-                -- Fecha a guia atual "Nova sessão".
-                -- A sessão correta fica aberta atrás dela.
-                keystroke "w" using {command down}
+                if confirmConsole then
+                    repeat 25 times
+                        try
+                            set controls to entire contents of window 1
+                            repeat with controlItem in controls
+                                try
+                                    if role of controlItem is "AXButton" then
+                                        set buttonName to name of controlItem as text
+                                        if buttonName is "Conectar" or buttonName is "Connect" then
+                                            click controlItem
+                                            return "console-confirmed"
+                                        end if
+                                    end if
+                                end try
+                            end repeat
+                        end try
+                        delay 0.2
+                    end repeat
+                end if
             end tell
-        end if
-    end tell
+        end tell
+        return "session-selected"
+    end run
     '''
-
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 "osascript",
                 "-e",
-                apple_script,
+                script,
+                "true" if confirm_console else "false",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=8,
+            timeout=7 if confirm_console else 2,
             check=False,
         )
-
-    except (
-        OSError,
-        subprocess.TimeoutExpired,
-    ):
-        pass
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
-def open_anydesk_machine(machine_id):
+def _open_machine_url(machine_id, startup_delay, confirm_console=False):
+    """Envia o ID e seleciona a aba de sessão criada pelo AnyDesk."""
+    if startup_delay:
+        time.sleep(startup_delay)
+    try:
+        subprocess.Popen(
+            [
+                "open",
+                "-b",
+                "com.philandro.anydesk",
+                f"anydesk:{machine_id}",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # O AnyDesk 9 cria a sessão à esquerda, mas mantém "Nova sessão"
+        # selecionada. Alterna uma aba para trás sem fechar nenhuma delas.
+        time.sleep(0.45)
+        _select_opened_session(confirm_console)
+    except (OSError, subprocess.TimeoutExpired):
+        return
+
+
+def open_anydesk_machine(machine_id, confirm_console=False):
     machine_id = str(machine_id).strip()
 
-    if not machine_id:
+    if not re.fullmatch(r"\d{6,12}", machine_id):
         return False
 
     if not os.path.isdir(ANYDESK_APP):
         return False
 
     try:
-        subprocess.Popen(
+        launch = subprocess.run(
             [
                 "open",
-                f"anydesk:{machine_id}",
+                "-g",
+                "-a",
+                "AnyDesk",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            timeout=3,
+            check=False,
         )
+        if launch.returncode != 0:
+            return False
 
         threading.Thread(
-            target=_close_new_session_tab,
+            target=_open_machine_url,
+            args=(machine_id, 0.8, bool(confirm_console)),
             daemon=True,
         ).start()
 

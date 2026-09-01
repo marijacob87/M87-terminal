@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 import fitz
-from PySide6.QtCore import QMimeData, QSize, Qt, Signal
+from PySide6.QtCore import QMimeData, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QDrag, QIcon, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget,
@@ -13,6 +13,10 @@ from PySide6.QtWidgets import (
 
 from core.page_organizer import (
     PageSpec, page_specs, reorder_pages, rotated, save_pages, split_pages,
+)
+from core.photoshop_edit import (
+    DEFAULT_BLEED_MM, PhotoshopEditError, edited_image_to_pdf, open_in_photoshop,
+    prepare_page_for_photoshop,
 )
 from core.preferences import save_path
 from core.geometry import GeometryError, inspect_geometry
@@ -148,6 +152,20 @@ class OrganizePagesWidget(QWidget):
         self._work_dir = tempfile.TemporaryDirectory(prefix="m87_org_")
         self._work_generation = 0
         self._thumbnail_zoom = 1.0
+        self._photoshop_editing = False
+        self._photoshop_row = None
+        self._photoshop_image = None
+        self._photoshop_template = None
+        self._photoshop_bleed_mm = 0.0
+        self._photoshop_active_button = None
+        self._photoshop_generation = 0
+        self._photoshop_monitor_armed = False
+        self._photoshop_baseline_signature = None
+        self._photoshop_pending_signature = None
+        self._photoshop_stable_checks = 0
+        self._photoshop_poll_timer = QTimer(self)
+        self._photoshop_poll_timer.setInterval(700)
+        self._photoshop_poll_timer.timeout.connect(self._poll_photoshop_page)
         self._build_ui()
         apply_terminal_accent(self)
         self.setStyleSheet(TOOL_STANDARD_QSS + self._qss())
@@ -218,7 +236,17 @@ class OrganizePagesWidget(QWidget):
         self.replace_button = self._button("SUBSTITUIR", self._replace_pages)
         self.extract_button = self._button("EXTRAIR", self._extract_pages)
         self.split_button = self._button("DIVIDIR", self._split_pages)
-        for button in (self.insert_button, self.replace_button, self.extract_button, self.split_button):
+        self.photoshop_button = self._button(
+            "ABRIR PHOTOSHOP", self._open_photoshop_page
+        )
+        self.photoshop_bleed_button = self._button(
+            "CRIAR SANGRIA 3MM", self._open_photoshop_bleed
+        )
+        for button in (
+            self.insert_button, self.replace_button, self.extract_button,
+            self.split_button, self.photoshop_button,
+            self.photoshop_bleed_button,
+        ):
             button.setProperty("orgAction", True)
             document_layout.addWidget(button)
         sidebar_layout.addWidget(document_card)
@@ -337,6 +365,7 @@ class OrganizePagesWidget(QWidget):
         self.load_pdf(candidates[0])
 
     def clear_pdf(self):
+        self._finish_photoshop_edit()
         self.current_path = None
         self._pages.clear()
         self._undo.clear()
@@ -353,6 +382,7 @@ class OrganizePagesWidget(QWidget):
         self._update_actions()
 
     def load_pdf(self, path):
+        self._finish_photoshop_edit()
         source = Path(path).expanduser().resolve()
         try:
             specs = page_specs(source)
@@ -599,6 +629,166 @@ class OrganizePagesWidget(QWidget):
         except Exception as error:
             QMessageBox.critical(self, "M87 • ORGANIZAR PÁGINAS", str(error))
 
+    def _open_photoshop_page(self):
+        self._start_photoshop_edit(0.0, self.photoshop_button)
+
+    def _open_photoshop_bleed(self):
+        self._start_photoshop_edit(
+            DEFAULT_BLEED_MM,
+            self.photoshop_bleed_button,
+        )
+
+    def _start_photoshop_edit(self, bleed_mm, active_button):
+        if self._photoshop_editing:
+            self._finish_photoshop_edit()
+            self.status.setText("EDIÇÃO NO PHOTOSHOP CANCELADA")
+            return
+        rows = self._selected_rows()
+        if len(rows) != 1:
+            QMessageBox.warning(
+                self,
+                "M87 • PHOTOSHOP",
+                "Selecione exatamente uma página para editar.",
+            )
+            return
+        row = rows[0]
+        self._photoshop_generation += 1
+        folder = Path(self._work_dir.name) / (
+            f"photoshop_{self._photoshop_generation:03d}"
+        )
+        try:
+            image_path, template_path = prepare_page_for_photoshop(
+                self.current_path,
+                self._pages[row],
+                folder,
+                bleed_mm=bleed_mm,
+            )
+            self._photoshop_row = row
+            self._photoshop_image = image_path
+            self._photoshop_template = template_path
+            self._photoshop_bleed_mm = bleed_mm
+            self._photoshop_active_button = active_button
+            self._photoshop_editing = True
+            open_in_photoshop(image_path)
+        except PhotoshopEditError as error:
+            self._finish_photoshop_edit()
+            QMessageBox.critical(self, "M87 • PHOTOSHOP", str(error))
+            return
+        active_button.setText("CANCELAR EDIÇÃO")
+        operation = "SANGRIA 3MM" if bleed_mm else "EDIÇÃO"
+        self.status.setText(
+            f"{operation} · PÁGINA {row + 1} ABERTA NO PHOTOSHOP · SALVE COM ⌘S"
+        )
+        self._photoshop_poll_timer.start()
+        self._update_actions()
+
+    @staticmethod
+    def _file_signature(path):
+        try:
+            stat = Path(path).stat()
+        except OSError:
+            return None
+        return stat.st_mtime_ns, stat.st_size
+
+    def _poll_photoshop_page(self):
+        if not self._photoshop_editing or not self._photoshop_image:
+            return
+        signature = self._file_signature(self._photoshop_image)
+        if signature is None:
+            return
+        if not self._photoshop_monitor_armed:
+            if signature == self._photoshop_pending_signature:
+                self._photoshop_stable_checks += 1
+            else:
+                self._photoshop_pending_signature = signature
+                self._photoshop_stable_checks = 0
+            # O Photoshop toca no TIFF enquanto o abre. Só começamos a
+            # observar edições depois que o arquivo ficou estável por 2,1 s.
+            if self._photoshop_stable_checks >= 3:
+                self._photoshop_monitor_armed = True
+                self._photoshop_baseline_signature = signature
+                self._photoshop_pending_signature = None
+                self._photoshop_stable_checks = 0
+            return
+        if signature == self._photoshop_baseline_signature:
+            self._photoshop_pending_signature = None
+            self._photoshop_stable_checks = 0
+            return
+        if signature == self._photoshop_pending_signature:
+            self._photoshop_stable_checks += 1
+        else:
+            self._photoshop_pending_signature = signature
+            self._photoshop_stable_checks = 0
+        # Duas leituras iguais evitam importar enquanto o TIFF ainda grava.
+        if self._photoshop_stable_checks >= 2:
+            self._import_photoshop_page()
+
+    def _import_photoshop_page(self):
+        row = self._photoshop_row
+        image_path = self._photoshop_image
+        template_path = self._photoshop_template
+        bleed_mm = self._photoshop_bleed_mm
+        if (
+            not self._photoshop_editing
+            or row is None
+            or image_path is None
+            or template_path is None
+            or not image_path.is_file()
+            or image_path.stat().st_size == 0
+            or not 0 <= row < len(self._pages)
+        ):
+            return
+        output = image_path.with_name("pagina_editada.pdf")
+        try:
+            edited_image_to_pdf(
+                image_path,
+                template_path,
+                output,
+                bleed_mm=bleed_mm,
+            )
+            replacement = page_specs(output)[0]
+        except (OSError, PhotoshopEditError, ValueError) as error:
+            QMessageBox.critical(self, "M87 • PHOTOSHOP", str(error))
+            return
+        self._snapshot()
+        self._pages[row] = replacement
+        self._icon_cache.clear()
+        self._finish_photoshop_edit()
+        self._rebuild([row])
+        self._queue_publish()
+        success_button = (
+            self.photoshop_bleed_button
+            if bleed_mm else self.photoshop_button
+        )
+        restore_text = (
+            "CRIAR SANGRIA 3MM" if bleed_mm else "ABRIR PHOTOSHOP"
+        )
+        show_button_success(success_button, restore_text=restore_text)
+        self.status.setText(
+            f"✓ PÁGINA {row + 1} ATUALIZADA"
+            + (" COM SANGRIA DE 3MM" if bleed_mm else " PELO PHOTOSHOP")
+        )
+
+    def _finish_photoshop_edit(self):
+        self._photoshop_poll_timer.stop()
+        self._photoshop_editing = False
+        self._photoshop_row = None
+        self._photoshop_image = None
+        self._photoshop_template = None
+        self._photoshop_bleed_mm = 0.0
+        self._photoshop_active_button = None
+        self._photoshop_monitor_armed = False
+        self._photoshop_baseline_signature = None
+        self._photoshop_pending_signature = None
+        self._photoshop_stable_checks = 0
+        if hasattr(self, "photoshop_button"):
+            self.photoshop_button.setText("ABRIR PHOTOSHOP")
+            self.photoshop_bleed_button.setText("CRIAR SANGRIA 3MM")
+        if hasattr(self, "pages"):
+            self.pages.setDragEnabled(True)
+        if hasattr(self, "_document_cards"):
+            self._update_actions()
+
     def _save_as(self):
         if not self.current_path:
             return
@@ -752,22 +942,35 @@ class OrganizePagesWidget(QWidget):
 
     def _update_actions(self):
         loaded = bool(self.current_path and self._pages)
-        selected = bool(self.pages.selectedItems())
+        selected_count = len(self.pages.selectedItems())
+        selected = bool(selected_count)
+        editing = self._photoshop_editing
         for card in self._document_cards:
             set_document_control_enabled(card, loaded)
         for button in (
             self.insert_button, self.split_button, self.save_button,
             self.restore_button, self.print_button,
         ):
-            button.setEnabled(loaded)
+            button.setEnabled(loaded and not editing)
         for button in (
             self.replace_button, self.extract_button, self.left_button,
             self.right_button, self.duplicate_button, self.delete_button,
         ):
-            button.setEnabled(loaded and selected)
-        self.range_edit.setEnabled(loaded)
-        self.undo_button.setEnabled(bool(self._undo))
-        self.redo_button.setEnabled(bool(self._redo))
+            button.setEnabled(loaded and selected and not editing)
+        photoshop_ready = loaded and selected_count == 1
+        for button in (self.photoshop_button, self.photoshop_bleed_button):
+            button.setEnabled(
+                (editing and button is self._photoshop_active_button)
+                or (not editing and photoshop_ready)
+            )
+        self.photoshop_button.setText("ABRIR PHOTOSHOP")
+        self.photoshop_bleed_button.setText("CRIAR SANGRIA 3MM")
+        if editing and self._photoshop_active_button:
+            self._photoshop_active_button.setText("CANCELAR EDIÇÃO")
+        self.range_edit.setEnabled(loaded and not editing)
+        self.undo_button.setEnabled(bool(self._undo) and not editing)
+        self.redo_button.setEnabled(bool(self._redo) and not editing)
+        self.pages.setDragEnabled(not editing)
         self.preview_toolbar.set_document_enabled(loaded)
         row = self.pages.currentRow()
         if loaded and row < 0:
@@ -779,4 +982,9 @@ class OrganizePagesWidget(QWidget):
         self.preview_toolbar.next_button.setEnabled(
             loaded and row + 1 < len(self._pages)
         )
-        self.preview_toolbar.rotation_undo_button.setEnabled(bool(self._undo))
+        self.preview_toolbar.rotation_undo_button.setEnabled(
+            bool(self._undo) and not editing
+        )
+        self.preview_toolbar.rotate_button.setEnabled(
+            loaded and not editing
+        )

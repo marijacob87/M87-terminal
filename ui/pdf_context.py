@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from core.image_pdf import ImagePdfError, images_to_pdf, is_supported_image
 from ui.constants import PDF_ACTIONS
 from ui.rename_pdf_dialog import RenamePdfDialog
 
@@ -111,7 +112,10 @@ class PdfContextMixin:
         return any(
             url.toLocalFile()
             and os.path.isfile(url.toLocalFile())
-            and url.toLocalFile().lower().endswith(".pdf")
+            and (
+                url.toLocalFile().lower().endswith(".pdf")
+                or is_supported_image(url.toLocalFile())
+            )
             for url in event.mimeData().urls()
         )
 
@@ -132,13 +136,22 @@ class PdfContextMixin:
             event.ignore()
             return
 
-        for url in event.mimeData().urls():
-            path = url.toLocalFile()
-
-            if path and path.lower().endswith(".pdf"):
-                self.handle_file_drop(path)
-                event.acceptProposedAction()
-                return
+        paths = [url.toLocalFile() for url in event.mimeData().urls()]
+        pdfs = [path for path in paths if path and path.lower().endswith(".pdf")]
+        images = [path for path in paths if path and is_supported_image(path)]
+        if pdfs:
+            self.handle_file_drop(pdfs[0])
+            event.acceptProposedAction()
+            return
+        if images:
+            try:
+                self.handle_pdf_drop(str(images_to_pdf(images)))
+            except ImagePdfError as error:
+                self.active_file_label.setText(str(error))
+                self.active_file_label.show()
+                QTimer.singleShot(0, self.ajustar_altura_ao_conteudo)
+            event.acceptProposedAction()
+            return
 
         event.ignore()
 
@@ -150,6 +163,12 @@ class PdfContextMixin:
 
         if path.lower().endswith(".pdf"):
             self.handle_pdf_drop(path)
+        elif is_supported_image(path):
+            try:
+                self.handle_pdf_drop(str(images_to_pdf([path])))
+            except ImagePdfError as error:
+                self.active_file_label.setText(str(error))
+                self.active_file_label.show()
 
     def handle_pdf_drop(self, path):
         self.current_pdf = path

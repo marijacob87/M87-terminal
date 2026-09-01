@@ -319,16 +319,19 @@ class ImpositionDialog(QDialog):
         distribution_card, distribution_layout = self._card("DISTRIBUIÇÃO")
         self.repeat = QRadioButton("Repetir cada página")
         self.seq = QRadioButton("Sequencial 1, 2, 3…")
+        self.stacked = QRadioButton("Empilhamento 1, 51, 2, 52…")
         self.repeat.setChecked(True)
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.repeat)
         self.mode_group.addButton(self.seq)
+        self.mode_group.addButton(self.stacked)
         modes = QHBoxLayout()
         modes.setSpacing(18)
         modes.addWidget(self.repeat)
         modes.addWidget(self.seq)
         modes.addStretch()
         distribution_layout.addLayout(modes)
+        distribution_layout.addWidget(self.stacked)
         self.order = QComboBox()
         self.order.addItems(["Esquerda → direita, depois desce", "Cima → baixo, depois avança"])
         distribution_layout.addWidget(self.order)
@@ -562,6 +565,7 @@ class ImpositionDialog(QDialog):
         self.filename.textEdited.connect(self._filename_edited)
         self.repeat.toggled.connect(self._mode_changed)
         self.seq.toggled.connect(self._mode_changed)
+        self.stacked.toggled.connect(self._mode_changed)
         self.order.currentIndexChanged.connect(self.recalculate)
         self.marks.toggled.connect(self.recalculate)
         self.mark_offset.valueChanged.connect(self.recalculate)
@@ -699,7 +703,7 @@ class ImpositionDialog(QDialog):
         page_count = page_count or (
             self.geometry_info.page_count if self.geometry_info else 1
         )
-        mode = mode or ("repeat" if self.repeat.isChecked() else "sequential")
+        mode = mode or self._selected_mode()
         return automatic_sheet_label(
             path,
             quantity,
@@ -990,7 +994,7 @@ class ImpositionDialog(QDialog):
     def _refresh_batch_calculations(self):
         if not self.batch_mode or self._updating_batch_table:
             return
-        mode = "repeat" if self.repeat.isChecked() else "sequential"
+        mode = self._selected_mode()
         majority = self._majority_trim()
         total_plans = 0
         for row, item in enumerate(self.batch_items):
@@ -1036,7 +1040,7 @@ class ImpositionDialog(QDialog):
         )
 
     def _refresh(self):
-        mode = "repeat" if self.repeat.isChecked() else "sequential"
+        mode = self._selected_mode()
         for index, button in enumerate((self.best, self.second)):
             if index < len(self.options):
                 option = self.options[index]
@@ -1167,6 +1171,13 @@ class ImpositionDialog(QDialog):
             return self.geometry_info.page_count
         return max(1, math.ceil(self.geometry_info.page_count / option.total))
 
+    def _selected_mode(self) -> str:
+        if self.repeat.isChecked():
+            return "repeat"
+        if self.stacked.isChecked():
+            return "stacked"
+        return "sequential"
+
     def _update_navigation(self, total_sheets: int):
         if total_sheets < 1:
             self.sheet_label.setText("Nenhum PDF")
@@ -1280,7 +1291,7 @@ class ImpositionDialog(QDialog):
         option = self._active_layout()
         if not self.pdf_path or not option or not self.geometry_info:
             return
-        mode = "repeat" if self.repeat.isChecked() else "sequential"
+        mode = self._selected_mode()
         plans = calculate_plans(
             mode, self.geometry_info.page_count, option.total, self.quantity.value()
         )
@@ -1340,7 +1351,7 @@ class ImpositionDialog(QDialog):
         option = self._active_layout()
         if not self.pdf_path or not option or not self.geometry_info:
             return
-        mode = "repeat" if self.repeat.isChecked() else "sequential"
+        mode = self._selected_mode()
         plans = calculate_plans(
             mode, self.geometry_info.page_count, option.total, self.quantity.value()
         )
@@ -1388,7 +1399,7 @@ class ImpositionDialog(QDialog):
         failed = 0
         warnings = 0
         saved_entries = []
-        mode = "repeat" if self.repeat.isChecked() else "sequential"
+        mode = self._selected_mode()
         fill_order = "rows" if self.order.currentIndex() == 0 else "columns"
 
         for index, item in enumerate(self.batch_items):

@@ -764,6 +764,11 @@ class SettingsDialog(QDialog):
         if page_index is None:
             return
         self.pages.setCurrentIndex(page_index)
+        if (
+            row == self._key_to_row.get("about")
+            and hasattr(self, "changelog_layout")
+        ):
+            self.refresh_git_history()
 
     def show_section(self, section_id):
         if section_id == "notes":
@@ -1258,36 +1263,16 @@ class SettingsDialog(QDialog):
         log_title.setObjectName("settingsCardTitle")
         log_title.setAlignment(Qt.AlignCenter)
         layout.addWidget(log_title)
-        log = QLabel(commit)
-        log.setObjectName("settingsAboutMeta")
-        log.setWordWrap(True)
-        log.setAlignment(Qt.AlignCenter)
-        layout.addWidget(log)
+        self.latest_git_label = QLabel(commit)
+        self.latest_git_label.setObjectName("settingsAboutMeta")
+        self.latest_git_label.setWordWrap(True)
+        self.latest_git_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.latest_git_label)
         self.changelog_panel = QWidget()
-        changelog_layout = QVBoxLayout(self.changelog_panel)
-        changelog_layout.setContentsMargins(48, 8, 48, 8)
-        changelog_layout.setSpacing(2)
-        current_date = None
-        for date_text, subject in self._git_entries():
-            if date_text != current_date:
-                current_date = date_text
-                try:
-                    parsed = datetime.strptime(date_text, "%d/%m/%Y")
-                    date_label_text = parsed.strftime("%d %b %Y").upper()
-                except ValueError:
-                    date_label_text = date_text
-                date_label = QLabel(date_label_text)
-                date_label.setObjectName("settingsChangeDate")
-                changelog_layout.addWidget(date_label)
-            entry = QLabel(f"▸ {subject}")
-            entry.setObjectName("settingsCommit")
-            entry.setWordWrap(True)
-            entry.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            changelog_layout.addWidget(entry)
-        if current_date is None:
-            unavailable = QLabel("Histórico de alterações não disponível.")
-            unavailable.setObjectName("settingsAboutMeta")
-            changelog_layout.addWidget(unavailable)
+        self.changelog_layout = QVBoxLayout(self.changelog_panel)
+        self.changelog_layout.setContentsMargins(48, 8, 48, 8)
+        self.changelog_layout.setSpacing(2)
+        self._rebuild_changelog()
         self.changelog_panel.hide()
         layout.addWidget(self.changelog_panel)
         layout.addStretch()
@@ -1309,6 +1294,44 @@ class SettingsDialog(QDialog):
         )
         return page
 
+    def _rebuild_changelog(self):
+        while self.changelog_layout.count():
+            item = self.changelog_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        current_date = None
+        for date_text, subject in self._git_entries():
+            if date_text != current_date:
+                current_date = date_text
+                try:
+                    parsed = datetime.strptime(date_text, "%d/%m/%Y")
+                    date_label_text = parsed.strftime("%d %b %Y").upper()
+                except ValueError:
+                    date_label_text = date_text
+                date_label = QLabel(date_label_text)
+                date_label.setObjectName("settingsChangeDate")
+                self.changelog_layout.addWidget(date_label)
+            entry = QLabel(f"▸ {subject}")
+            entry.setObjectName("settingsCommit")
+            entry.setWordWrap(True)
+            entry.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            self.changelog_layout.addWidget(entry)
+        if current_date is None:
+            unavailable = QLabel("Histórico de alterações não disponível.")
+            unavailable.setObjectName("settingsAboutMeta")
+            self.changelog_layout.addWidget(unavailable)
+
+    def refresh_git_history(self):
+        self.latest_git_label.setText(self._latest_git_commit())
+        self._rebuild_changelog()
+        if self.changelog_panel.isVisible():
+            QTimer.singleShot(
+                0,
+                lambda: self.about_scroll.verticalScrollBar().setValue(0),
+            )
+
     def _system_info_text(self):
         from core.config import APP_VERSION
 
@@ -1319,6 +1342,8 @@ class SettingsDialog(QDialog):
 
     def _toggle_changelog(self, button):
         visible = not self.changelog_panel.isVisible()
+        if visible:
+            self.refresh_git_history()
         self.changelog_panel.setVisible(visible)
         button.setText(
             "FECHAR" if visible else "CHANGELOG"
@@ -1326,9 +1351,7 @@ class SettingsDialog(QDialog):
         if visible:
             QTimer.singleShot(
                 0,
-                lambda: self.about_scroll.verticalScrollBar().setValue(
-                    self.about_scroll.verticalScrollBar().maximum()
-                ),
+                lambda: self.about_scroll.verticalScrollBar().setValue(0),
             )
         else:
             self.about_scroll.verticalScrollBar().setValue(0)

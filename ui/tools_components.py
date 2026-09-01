@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.image_pdf import is_supported_image
 
 YELLOW = "#FFC400"
 
@@ -49,7 +50,11 @@ class PdfDropOverlay(QWidget):
         if not mime_data or not mime_data.hasUrls():
             return False
         return any(
-            url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
+            url.isLocalFile()
+            and (
+                url.toLocalFile().lower().endswith(".pdf")
+                or is_supported_image(url.toLocalFile())
+            )
             for url in mime_data.urls()
         )
 

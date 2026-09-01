@@ -135,7 +135,7 @@ class M87Term(
             )
         except Exception as error:
             # O aquecimento é apenas uma otimização. Se falhar, o fluxo normal
-            # recria a janela no primeiro comando sem comprometer o Terminal.
+        # recria a janela no primeiro comando sem comprometer o Terminal.
             print(f"[FERRAMENTAS] Não foi possível preparar a janela: {error}")
 
     def start_client_subfolder_search(self, query):

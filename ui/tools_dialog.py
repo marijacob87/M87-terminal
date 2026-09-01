@@ -7,10 +7,11 @@ from PySide6.QtGui import (
     QCursor, QIcon, QKeySequence, QShortcut,
 )
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QHBoxLayout, QLabel, QSizeGrip, QSizePolicy,
+    QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox, QSizeGrip, QSizePolicy,
     QTabWidget, QVBoxLayout, QWidget,
 )
 
+from core.image_pdf import ImagePdfError, images_to_pdf, is_supported_image
 from ui.code_generator_dialog import CodeGeneratorDialog
 from ui.colors_widget import ColorsWidget
 from ui.geometry_widget import GeometryWidget
@@ -297,9 +298,8 @@ class ToolsDialog(QDialog):
 
             QTimer.singleShot(0, load_after_open)
 
-    @staticmethod
-    def _pdf_paths(mime_data):
-        paths, seen = [], set()
+    def _pdf_paths(self, mime_data):
+        paths, images, seen = [], [], set()
         if not mime_data or not mime_data.hasUrls():
             return paths
         for url in mime_data.urls():
@@ -312,9 +312,19 @@ class ToolsDialog(QDialog):
             except OSError:
                 pass
             key = str(path).casefold()
-            if path.is_file() and path.suffix.casefold() == ".pdf" and key not in seen:
+            if not path.is_file() or key in seen:
+                continue
+            if path.suffix.casefold() == ".pdf":
                 seen.add(key)
                 paths.append(str(path))
+            elif is_supported_image(path):
+                seen.add(key)
+                images.append(path)
+        if images:
+            try:
+                paths.append(str(images_to_pdf(images)))
+            except ImagePdfError as error:
+                QMessageBox.warning(self, "M87 • IMAGENS", str(error))
         return paths
 
     def _drop_is_enabled(self):
@@ -381,7 +391,11 @@ class ToolsDialog(QDialog):
         if not mime_data or not mime_data.hasUrls():
             return False
         return any(
-            url.isLocalFile() and url.toLocalFile().lower().endswith(".pdf")
+            url.isLocalFile()
+            and (
+                url.toLocalFile().lower().endswith(".pdf")
+                or is_supported_image(url.toLocalFile())
+            )
             for url in mime_data.urls()
         )
 

@@ -14,6 +14,7 @@ from core.imposition import (
     automatic_filename,
     automatic_sheet_label,
     build_custom_layout,
+    build_imposition_groups,
     calculate_layouts,
     calculate_plans,
     export_imposition,
@@ -234,6 +235,17 @@ class LayoutTests(unittest.TestCase):
     def test_plan_rules_for_repeat_and_sequential_modes(self):
         self.assertEqual(calculate_plans("repeat", 10, 4, 101), 26)
         self.assertEqual(calculate_plans("sequential", 10, 4, 3), 9)
+        self.assertEqual(calculate_plans("stacked", 10, 4, 3), 9)
+
+    def test_stacked_distribution_keeps_cut_stacks_in_sequence(self):
+        self.assertEqual(
+            build_imposition_groups("stacked", 100, 2),
+            [[sheet, sheet + 50] for sheet in range(50)],
+        )
+        self.assertEqual(
+            build_imposition_groups("stacked", 5, 4),
+            [[0, 2, 4, None], [1, 3, None, None]],
+        )
 
     def test_duplex_long_edge_mirrors_columns_on_portrait_paper(self):
         self.assertEqual(
@@ -360,6 +372,28 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(summary.imposed_pages, 1)
         self.assertEqual(summary.plans, 3)
         self.assertEqual(summary.items_per_sheet, 2)
+
+    def test_stacked_export_places_page_blocks_in_each_cut_position(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf", page_count=4)
+            output = root / "stacked.pdf"
+
+            export_imposition(
+                source, output, self._layout(), gutter_mm=2,
+                mode="stacked", quantity_each=1, crop_marks=False,
+                identify_sheets=False,
+            )
+
+            document = fitz.open(output)
+            try:
+                self.assertEqual(document.page_count, 2)
+                self.assertIn("Página 1", document[0].get_text())
+                self.assertIn("Página 3", document[0].get_text())
+                self.assertIn("Página 2", document[1].get_text())
+                self.assertIn("Página 4", document[1].get_text())
+            finally:
+                document.close()
 
     def test_rotated_repeat_export_remains_vector_and_readable(self):
         with tempfile.TemporaryDirectory() as directory:

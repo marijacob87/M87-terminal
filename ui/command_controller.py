@@ -1,4 +1,5 @@
 import os
+from datetime import date
 
 from core.anydesk import (
     get_anydesk_suggestions,
@@ -15,6 +16,7 @@ from core.config import BREAKPOINT_WIDTH
 from core.executor import execute
 from core.system_actions import get_last_kill_report
 from core.input_handler import handle_input_text
+from core.planner import PlannerStore, parse_terminal_task, week_start
 from core.suggestion_engine import get_suggestions
 from ui.command_workflows import CommandWorkflowMixin
 from ui.constants import PDF_ACTIONS
@@ -45,6 +47,10 @@ class CommandControllerMixin(CommandWorkflowMixin):
     def update_suggestions(self, text):
         text = text.strip()
         upper_text = text.upper()
+
+        if parse_terminal_task(text):
+            self.clear_suggestions()
+            return
 
         if self.current_pdf:
             suggestions = self.get_pdf_suggestions(text)
@@ -183,7 +189,8 @@ class CommandControllerMixin(CommandWorkflowMixin):
 
             if selected_type == "anydesk_machine":
                 open_anydesk_machine(
-                    selected.get("id", "")
+                    selected.get("id", ""),
+                    confirm_console=selected.get("console", False),
                 )
                 return True
 
@@ -280,6 +287,27 @@ class CommandControllerMixin(CommandWorkflowMixin):
             self._clear_input_silently()
             self.clear_suggestions()
             self.input.setFocus()
+            return
+
+        if code == "TODO":
+            from core.planner_web import open_planner_web
+
+            if open_planner_web():
+                self._clear_input_silently()
+                self.clear_suggestions()
+                return
+
+            from ui.planner_dialog import PlannerDialog
+
+            dialog = getattr(self, "planner_dialog", None)
+            if dialog is None:
+                dialog = PlannerDialog(self)
+                self.planner_dialog = dialog
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            self._clear_input_silently()
+            self.clear_suggestions()
             return
 
         # RE permanece como alias oculto do comando visível REL.
@@ -396,6 +424,35 @@ class CommandControllerMixin(CommandWorkflowMixin):
             self.execute_command("NOTAS")
             return
 
+        terminal_task = parse_terminal_task(text)
+        if terminal_task:
+            tag, task_text = terminal_task
+            task_date = date.today()
+            day_name = PlannerStore().add_task_for_date(
+                task_date,
+                tag,
+                task_text,
+            )
+            self._clear_command_navigation()
+            self._clear_input_silently()
+            self.clear_suggestions()
+
+            if day_name is None:
+                message = "⚠ O planner recebe tarefas de segunda a sexta"
+            else:
+                dialog = getattr(self, "planner_dialog", None)
+                if dialog and dialog.current_start == week_start(task_date):
+                    dialog._flush_notes_save()
+                    dialog.store = PlannerStore()
+                    dialog._load_week()
+                message = f"✓ Tarefa adicionada em {day_name}"
+
+            self.session_result_label.setText(message)
+            self.session_result_label.show()
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(3500, self.clear_session_result)
+            return
+
         command_index = getattr(self, "command_navigation_index", -1)
         if (
             not text
@@ -469,6 +526,9 @@ class CommandControllerMixin(CommandWorkflowMixin):
         handle_input_text(self, text)
 
     def restart_app(self):
+        dialog = getattr(self, "planner_dialog", None)
+        if dialog is not None:
+            dialog._save_window_geometry()
         self.save_current_state()
         self._force_close = True
         restart_m87_process()

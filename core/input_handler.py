@@ -102,6 +102,9 @@ def handle_input_text(app, text):
 
         result = publish_git_update(commit_message)
         app.session_result_label.setText(result.message)
+        settings_dialog = getattr(app, "settings_dialog", None)
+        if settings_dialog is not None:
+            settings_dialog.refresh_git_history()
 
         QTimer.singleShot(0, app.ajustar_altura_ao_conteudo)
         QTimer.singleShot(10000, app.clear_session_result)

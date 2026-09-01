@@ -10,7 +10,7 @@ import fitz
 from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QLabel,
     QMessageBox, QPushButton,
     QRadioButton, QSpinBox, QVBoxLayout, QWidget,
@@ -37,8 +37,12 @@ from core.geometry import (
 from core.preferences import save_path
 
 FIXED_FORMATS = {
+    "A5 · 148 × 210": (148.0, 210.0),
     "A4 · 210 × 297": (210.0, 297.0),
     "A3 · 297 × 420": (297.0, 420.0),
+    "A5+4 · 152 × 214": (152.0, 214.0),
+    "A4+4 · 214 × 301": (214.0, 301.0),
+    "A3+4 · 301 × 424": (301.0, 424.0),
 }
 
 
@@ -93,6 +97,7 @@ class GeometryWidget(QWidget):
         self._pending_pdf_state = None
         self._size_previous_width = 0.0
         self._size_previous_height = 0.0
+        self._pending_operation_pages = ()
         self._format_apply_timer = QTimer(self)
         self._format_apply_timer.setSingleShot(True)
         self._format_apply_timer.setInterval(450)
@@ -125,9 +130,7 @@ class GeometryWidget(QWidget):
         format_card = self._format_card()
         sizes_card = self._sizes_card()
         cleanup_card = self._cleanup_card()
-        self._document_cards = (
-            format_card, sizes_card, cleanup_card,
-        )
+        self._document_cards = (format_card, sizes_card, cleanup_card)
         for card in self._document_cards:
             left.addWidget(card)
         left.addStretch()
@@ -195,7 +198,7 @@ class GeometryWidget(QWidget):
         return row
 
     def _format_card(self):
-        card, layout = self._card("FORMATO TOTAL")
+        card, layout = self._card("FORMATO")
         self.format_preset = QComboBox()
         layout.addWidget(self.format_preset)
         quick = QHBoxLayout()
@@ -228,38 +231,10 @@ class GeometryWidget(QWidget):
         return card
 
     def _sizes_card(self):
-        card, layout = self._card("TAMANHOS")
-        target_row = QHBoxLayout()
-        target_row.setContentsMargins(0, 0, 0, 0)
-        target_row.setSpacing(14)
-        self.media_target = QRadioButton("MEDIABOX")
-        self.media_target.setObjectName("geoMediaTarget")
-        self.trim_target = QRadioButton("TRIMBOX")
-        self.trim_target.setObjectName("geoTrimTarget")
-        self.size_target_group = QButtonGroup(self)
-        self.size_target_group.setExclusive(True)
-        self.size_target_group.addButton(self.media_target)
-        self.size_target_group.addButton(self.trim_target)
-        self.trim_target.setChecked(True)
-        target_row.addWidget(self.media_target)
-        target_row.addWidget(self.trim_target)
-        target_row.addStretch()
-        layout.addLayout(target_row)
+        card, layout = self._card("TRIMBOX")
         self.size_preset = QComboBox()
         self.size_preset.addItems(self._preset_names())
         layout.addWidget(self.size_preset)
-        self.media_quick = QWidget()
-        media_quick_layout = QHBoxLayout(self.media_quick)
-        media_quick_layout.setContentsMargins(0, 0, 0, 0)
-        media_quick_layout.addWidget(
-            self._quick_button("33×48", 330, 480, "sizes")
-        )
-        media_quick_layout.addWidget(
-            self._quick_button("32×45", 320, 450, "sizes")
-        )
-        media_quick_layout.addStretch()
-        self.media_quick.hide()
-        layout.addWidget(self.media_quick)
         self.trim_quick = QWidget()
         trim_quick_layout = QHBoxLayout(self.trim_quick)
         trim_quick_layout.setContentsMargins(0, 0, 0, 0)
@@ -285,13 +260,6 @@ class GeometryWidget(QWidget):
         self.swap_size_button = configure_measure_swap(QPushButton())
         values.addWidget(self.swap_size_button, 0, 1, Qt.AlignBottom)
         values.addLayout(_field("ALTURA", self.size_height), 0, 2)
-        values.addLayout(_field("X", self.size_x), 1, 0)
-        values.addLayout(_field("Y", self.size_y), 1, 2)
-        anchor_column = QVBoxLayout()
-        anchor_column.addWidget(self._caption("ÂNCORA"))
-        self.size_anchor = AnchorSelector()
-        anchor_column.addWidget(self.size_anchor)
-        values.addLayout(anchor_column, 0, 3, 2, 1)
         layout.addLayout(values)
         return card
 
@@ -379,8 +347,6 @@ class GeometryWidget(QWidget):
             )
         )
         self.range_radio.toggled.connect(self._range_toggled)
-        self.media_target.toggled.connect(self._target_changed)
-        self.trim_target.toggled.connect(self._target_changed)
         for widget in (
             self.size_x, self.size_y,
         ):
@@ -393,7 +359,6 @@ class GeometryWidget(QWidget):
         self.size_y.valueChanged.connect(self._schedule_size_apply)
         self.allow_distortion.toggled.connect(self._format_option_changed)
         self.format_anchor.changed.connect(self._format_option_changed)
-        self.size_anchor.changed.connect(self._refresh_preview)
         self._operation_buttons["cleanup"][0].clicked.connect(
             lambda: self._undo("cleanup")
         )
@@ -408,7 +373,6 @@ class GeometryWidget(QWidget):
             self.save_button, self.previous_page, self.next_page,
             self.restore_button, self.print_button,
             self.current_radio, self.all_radio, self.range_radio,
-            self.media_target, self.trim_target,
             self.swap_format_button, self.swap_size_button,
         ):
             widget.setEnabled(enabled)
@@ -549,7 +513,6 @@ class GeometryWidget(QWidget):
         self.page_to.setRange(1, info.page_count)
         self.page_to.setValue(info.page_count)
         self.all_radio.setChecked(True)
-        self.trim_target.setChecked(True)
         self._set_enabled(True)
         self._load_page()
         self.pdfStateChanged.emit([str(self.pdf_path)])
@@ -568,6 +531,7 @@ class GeometryWidget(QWidget):
         self.info = None
         self._undo_stack.clear()
         self._apply_serial = 0
+        self._pending_operation_pages = ()
         self._preview_image = QPixmap()
         self.current_page = 0
         if hasattr(self, "file_label"):
@@ -584,13 +548,12 @@ class GeometryWidget(QWidget):
         self._loading = True
         self.format_width.setValue(page.media.width_mm)
         self.format_height.setValue(page.media.height_mm)
-        self._set_size_fields(page.media if self.media_target.isChecked() else page.trim)
+        self._set_size_fields(page.trim)
         self._select_matching_preset(
             self.format_preset, page.media.width_mm, page.media.height_mm
         )
-        selected = page.media if self.media_target.isChecked() else page.trim
         self._select_matching_preset(
-            self.size_preset, selected.width_mm, selected.height_mm
+            self.size_preset, page.trim.width_mm, page.trim.height_mm
         )
         self._loading = False
         self.page_label.setText(
@@ -614,23 +577,12 @@ class GeometryWidget(QWidget):
         self._size_previous_width = geometry.width_mm
         self._size_previous_height = geometry.height_mm
 
-    @staticmethod
-    def _anchor_factors(anchor):
-        horizontal = 0 if anchor.endswith("left") or anchor == "left" else (
-            1 if anchor.endswith("right") or anchor == "right" else .5
-        )
-        vertical = 0 if anchor.startswith("top") or anchor == "top" else (
-            1 if anchor.startswith("bottom") or anchor == "bottom" else .5
-        )
-        return horizontal, vertical
-
     def _size_width_changed(self, value):
         if not self._loading and self._size_previous_width:
-            horizontal, _ = self._anchor_factors(self.size_anchor.anchor())
             self.size_x.blockSignals(True)
             self.size_x.setValue(
                 self.size_x.value()
-                + (self._size_previous_width - value) * horizontal
+                + (self._size_previous_width - value) * .5
             )
             self.size_x.blockSignals(False)
         self._size_previous_width = value
@@ -640,11 +592,10 @@ class GeometryWidget(QWidget):
 
     def _size_height_changed(self, value):
         if not self._loading and self._size_previous_height:
-            _, vertical = self._anchor_factors(self.size_anchor.anchor())
             self.size_y.blockSignals(True)
             self.size_y.setValue(
                 self.size_y.value()
-                + (self._size_previous_height - value) * vertical
+                + (self._size_previous_height - value) * .5
             )
             self.size_y.blockSignals(False)
         self._size_previous_height = value
@@ -671,27 +622,6 @@ class GeometryWidget(QWidget):
             return
         self.size_width.setValue(width)
         self.size_height.setValue(height)
-
-    def _target_changed(self, _checked):
-        self._size_apply_timer.stop()
-        if self._loading or not self.info:
-            return
-        page = self.info.pages[self.current_page]
-        if self.media_target.isChecked() and not self.trim_target.isChecked():
-            selected = page.media
-            self.media_quick.show()
-            self.trim_quick.hide()
-        elif self.trim_target.isChecked() and not self.media_target.isChecked():
-            selected = page.trim
-            self.media_quick.hide()
-            self.trim_quick.show()
-        else:
-            return
-        self._set_size_fields(selected)
-        self._select_matching_preset(
-            self.size_preset, selected.width_mm, selected.height_mm
-        )
-        self._refresh_preview()
 
     def _swap_size_dimensions(self):
         if self._loading or not self.info or self._worker:
@@ -734,26 +664,11 @@ class GeometryWidget(QWidget):
             return
         page = self.info.pages[self.current_page]
         media, trim = page.media, page.trim
-        content = BoxSettings(0, 0, media.width_mm, media.height_mm)
         pending = BoxSettings(
             self.size_x.value(), self.size_y.value(),
             self.size_width.value(), self.size_height.value(),
         )
-        if self.media_target.isChecked():
-            shift_x = (pending.width_mm - media.width_mm) / 2
-            shift_y = (pending.height_mm - media.height_mm) / 2
-            content = BoxSettings(
-                shift_x, shift_y, media.width_mm, media.height_mm
-            )
-            media = pending
-            if not self.trim_target.isChecked():
-                trim = BoxSettings(
-                    trim.x_mm + shift_x, trim.y_mm + shift_y,
-                    trim.width_mm, trim.height_mm,
-                )
-        if self.trim_target.isChecked():
-            trim = pending
-        self.preview.set_boxes(media, trim, self._preview_image, content)
+        self.preview.set_boxes(media, pending, self._preview_image)
 
     def _change_page(self, delta):
         target = self.current_page + delta
@@ -772,6 +687,7 @@ class GeometryWidget(QWidget):
         return (self.current_page,)
 
     def _apply_format(self):
+        self._size_apply_timer.stop()
         self._apply_settings("format", GeometrySettings(format=FormatSettings(
             self.format_width.value(), self.format_height.value(),
             self.format_anchor.anchor(), self.allow_distortion.isChecked(),
@@ -805,19 +721,11 @@ class GeometryWidget(QWidget):
         )
 
     def _apply_sizes(self):
-        if not self.media_target.isChecked() and not self.trim_target.isChecked():
-            QMessageBox.warning(
-                self, "M87 • GEOMETRIA", "Selecione MediaBox ou TrimBox."
-            )
-            return
         settings = BoxSettings(
             self.size_x.value(), self.size_y.value(),
             self.size_width.value(), self.size_height.value(),
         )
-        self._apply_settings("sizes", GeometrySettings(
-            media=settings if self.media_target.isChecked() else None,
-            trim=settings if self.trim_target.isChecked() else None,
-        ))
+        self._apply_settings("sizes", GeometrySettings(trim=settings))
 
     def _apply_cleanup(self):
         self._apply_settings(
@@ -832,6 +740,7 @@ class GeometryWidget(QWidget):
         except GeometryError as exc:
             QMessageBox.warning(self, "M87 • GEOMETRIA", str(exc))
             return
+        self._pending_operation_pages = pages
         root = Path(self._session.name)
         self._apply_serial += 1
         output = root / f"applied_{self._apply_serial}.pdf"
@@ -854,7 +763,8 @@ class GeometryWidget(QWidget):
         self._worker.start()
 
     def _apply_finished(self, info, output, operation, undo_path):
-        self._undo_stack.append((operation, Path(undo_path)))
+        operation_pages = tuple(self._pending_operation_pages)
+        self._undo_stack.append((operation, Path(undo_path), operation_pages))
         self.current_path = Path(output)
         self.info = info
         self._load_page()
@@ -872,6 +782,7 @@ class GeometryWidget(QWidget):
     def _worker_finished(self):
         worker = self._worker
         self._worker = None
+        self._pending_operation_pages = ()
         self._set_busy(False)
         if worker:
             worker.deleteLater()
@@ -891,8 +802,7 @@ class GeometryWidget(QWidget):
             self.format_preset, self.format_width, self.format_height,
             self.allow_distortion, self.format_anchor,
             self.size_preset, self.size_width, self.size_height,
-            self.size_x, self.size_y, self.media_target, self.trim_target,
-            self.media_quick, self.trim_quick,
+            self.size_x, self.size_y, self.trim_quick,
             self.swap_format_button, self.swap_size_button,
         ):
             widget.setEnabled(not busy and self.info is not None)
@@ -908,7 +818,7 @@ class GeometryWidget(QWidget):
             or self._worker
         ):
             return
-        _operation, snapshot = self._undo_stack.pop()
+        _operation, snapshot, operation_pages = self._undo_stack.pop()
         self._apply_serial += 1
         output = Path(self._session.name) / f"applied_{self._apply_serial}.pdf"
         try:
@@ -1061,18 +971,17 @@ class GeometryWidget(QWidget):
     def _format_preset_changed(self, name):
         if self._changing_format_preset:
             return
+        self._size_apply_timer.stop()
         self._changing_format_preset = True
         try:
             self._preset_changed(name, self.format_width, self.format_height)
-            index = self.size_preset.findText(name)
-            if index >= 0 and self.size_preset.currentIndex() != index:
-                self.size_preset.setCurrentIndex(index)
         finally:
             self._changing_format_preset = False
         self._refresh_preview()
         self._schedule_format_apply()
 
     def _format_dimensions_changed(self, _value):
+        self._size_apply_timer.stop()
         if not self._loading and not self._changing_format_preset:
             self._select_matching_preset(
                 self.format_preset,

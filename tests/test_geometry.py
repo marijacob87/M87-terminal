@@ -7,6 +7,7 @@ import pikepdf
 
 from core.geometry import (
     MM_TO_PT,
+    ArtworkFitSettings,
     BoxSettings,
     CropMarkSettings,
     FormatSettings,
@@ -39,6 +40,77 @@ def create_pdf(path: Path, pages=2):
 
 
 class GeometryTests(unittest.TestCase):
+    def test_format_distorts_art_and_boxes_to_exact_a3_plus_four(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "image.pdf"
+            document = fitz.open()
+            page = document.new_page(width=mm(86.7), height=mm(130.1))
+            page.draw_rect(page.rect, color=(1, 0, 0), fill=(0, 1, 0))
+            document.save(source)
+            document.close()
+
+            output = root / "a3_plus_four.pdf"
+            apply_geometry(
+                source,
+                output,
+                GeometrySettings(
+                    format=FormatSettings(301, 424, "center", True),
+                ),
+                [0],
+            )
+            info = inspect_geometry(output)
+            with fitz.open(output) as result:
+                artwork_rect = result[0].get_drawings()[0]["rect"]
+
+        self.assertAlmostEqual(info.pages[0].media.width_mm, 301, places=2)
+        self.assertAlmostEqual(info.pages[0].media.height_mm, 424, places=2)
+        self.assertAlmostEqual(info.pages[0].trim.width_mm, 301, places=2)
+        self.assertAlmostEqual(info.pages[0].trim.height_mm, 424, places=2)
+        self.assertAlmostEqual(artwork_rect.width * 25.4 / 72, 301, places=2)
+        self.assertAlmostEqual(artwork_rect.height * 25.4 / 72, 424, places=2)
+
+    def test_format_without_distortion_fits_proportionally_inside_a3_plus_four(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "image.pdf"
+            document = fitz.open()
+            page = document.new_page(width=mm(86.7), height=mm(130.1))
+            page.draw_rect(page.rect, color=(1, 0, 0), fill=(0, 1, 0))
+            document.save(source)
+            document.close()
+
+            output = root / "a3_plus_four_proportional.pdf"
+            apply_geometry(
+                source,
+                output,
+                GeometrySettings(
+                    format=FormatSettings(301, 424, "center", False),
+                ),
+                [0],
+            )
+            info = inspect_geometry(output)
+            with fitz.open(output) as result:
+                artwork_rect = result[0].get_drawings()[0]["rect"]
+
+        expected_scale = min(301 / 86.7, 424 / 130.1)
+        expected_width = 86.7 * expected_scale
+        self.assertAlmostEqual(info.pages[0].media.width_mm, 301, places=2)
+        self.assertAlmostEqual(info.pages[0].media.height_mm, 424, places=2)
+        self.assertAlmostEqual(info.pages[0].trim.width_mm, 301, places=2)
+        self.assertAlmostEqual(info.pages[0].trim.height_mm, 424, places=2)
+        self.assertAlmostEqual(
+            artwork_rect.width * 25.4 / 72,
+            expected_width,
+            places=2,
+        )
+        self.assertAlmostEqual(artwork_rect.height * 25.4 / 72, 424, places=2)
+        self.assertAlmostEqual(
+            artwork_rect.x0 * 25.4 / 72,
+            (301 - expected_width) / 2,
+            places=2,
+        )
+
     def test_inspects_media_and_trim_with_top_left_offsets(self):
         with tempfile.TemporaryDirectory() as directory:
             source = create_pdf(Path(directory) / "source.pdf", pages=1)
@@ -129,6 +201,78 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(info.pages[0].trim.x_mm, 5, places=2)
         self.assertAlmostEqual(info.pages[0].trim.y_mm, 6, places=2)
         self.assertAlmostEqual(info.pages[0].trim.width_mm, 90, places=2)
+
+    def test_fits_artwork_to_trim_proportionally_without_changing_boxes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf", pages=1)
+            with pikepdf.Pdf.open(source, allow_overwriting_input=True) as pdf:
+                page = pdf.pages[0]
+                page.obj.BleedBox = pikepdf.Array(
+                    [mm(1), mm(1), mm(105), mm(55)]
+                )
+                page.obj.ArtBox = pikepdf.Array(
+                    [mm(4), mm(4), mm(102), mm(52)]
+                )
+                pdf.save(source)
+            output = root / "output.pdf"
+            before_info = inspect_geometry(source)
+            with pikepdf.Pdf.open(source) as pdf:
+                before_bleed = tuple(pdf.pages[0].obj.BleedBox)
+                before_art = tuple(pdf.pages[0].obj.ArtBox)
+            before_document = fitz.open(source)
+            before_text = fitz.Rect(before_document[0].get_text("blocks")[0][:4])
+            before_document.close()
+
+            apply_geometry(
+                source,
+                output,
+                GeometrySettings(
+                    artwork_fit=ArtworkFitSettings(target="trim"),
+                ),
+                [0],
+            )
+
+            after_info = inspect_geometry(output)
+            after_document = fitz.open(output)
+            after_text = fitz.Rect(after_document[0].get_text("blocks")[0][:4])
+            after_document.close()
+            with pikepdf.Pdf.open(output) as pdf:
+                after_bleed = tuple(pdf.pages[0].obj.BleedBox)
+                after_art = tuple(pdf.pages[0].obj.ArtBox)
+
+        expected_scale = 50 / 56
+        self.assertEqual(before_info.pages[0].media, after_info.pages[0].media)
+        self.assertEqual(before_info.pages[0].trim, after_info.pages[0].trim)
+        self.assertEqual(before_bleed, after_bleed)
+        self.assertEqual(before_art, after_art)
+        self.assertAlmostEqual(
+            after_text.width / before_text.width,
+            expected_scale,
+            places=2,
+        )
+        self.assertAlmostEqual(
+            after_text.height / before_text.height,
+            expected_scale,
+            places=2,
+        )
+
+    def test_artwork_margin_is_validated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_pdf(root / "source.pdf", pages=1)
+            with self.assertRaisesRegex(GeometryError, "margem"):
+                apply_geometry(
+                    source,
+                    root / "output.pdf",
+                    GeometrySettings(
+                        artwork_fit=ArtworkFitSettings(
+                            target="trim",
+                            margin_mm=25,
+                        ),
+                    ),
+                    [0],
+                )
 
     def test_media_resize_keeps_existing_art_centered(self):
         with tempfile.TemporaryDirectory() as directory:

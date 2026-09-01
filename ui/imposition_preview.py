@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import QWidget
 
-from core.imposition import LayoutOption
+from core.imposition import LayoutOption, build_imposition_groups
 from ui.tool_design import TOOL_BACKGROUND
 
 
@@ -165,16 +165,21 @@ class PreviewWidget(QWidget):
             for row in range(option.rows):
                 for col in range(option.columns):
                     positions.append((row, col))
+        groups = (
+            build_imposition_groups(self.mode, self.page_count, option.total)
+            if self.page_assignments is None
+            else []
+        )
 
         for slot, (row, col) in enumerate(positions):
             if self.page_assignments is not None:
                 source_index = self.page_assignments[slot]
-            elif self.mode == "repeat":
-                source_index = self.sheet_index
             else:
-                source_index = self.sheet_index * option.total + slot
-                if source_index >= self.page_count:
-                    break
+                source_index = (
+                    groups[self.sheet_index][slot]
+                    if self.sheet_index < len(groups)
+                    else None
+                )
 
             x = origin_x + (option.start_x_mm + col * (option.item_width_mm + self.gutter)) * scale
             y = origin_y + (option.start_y_mm + row * (option.item_height_mm + self.gutter)) * scale
@@ -221,7 +226,7 @@ class PreviewWidget(QWidget):
             )
             show_numbered_badge = (
                 source_index is not None
-                and (self.mode == "sequential" or self.page_assignments is not None)
+                and (self.mode in {"sequential", "stacked"} or self.page_assignments is not None)
             )
             if show_numbered_badge or show_empty_manual_badge:
                 invalid_page = source_index is not None and source_index >= self.page_count
@@ -301,4 +306,3 @@ class PreviewWidget(QWidget):
         for y in sorted(y_boundaries):
             painter.drawLine(int(left - distance - length), int(y), int(left - distance), int(y))
             painter.drawLine(int(right + distance), int(y), int(right + distance + length), int(y))
-

@@ -25,15 +25,19 @@
         },
         {
           "code": "PDF",
-          "title": "Arraste um ou vários PDFs para o Terminal.",
-          "description": "Um PDF abre diretamente a janela centralizada na primeira aba, RESUMO. Ela cria uma descrição editável para a ordem de trabalho, mostra MediaBox e TrimBox, cores, verificações e miniaturas de todas as páginas com zoom e linhas opcionais dos boxes.",
+          "title": "Arraste PDFs ou imagens para o Terminal.",
+          "description": "Um PDF abre diretamente a janela centralizada na primeira aba, RESUMO. Uma ou várias imagens são reunidas automaticamente em um PDF, na ordem do arraste e com uma página por imagem, e seguem pelo mesmo fluxo.",
           "keywords": [
             "arrastar",
             "drag",
             "drop",
             "arquivo",
             "pdf",
-            "lote"
+            "lote",
+            "imagem",
+            "jpg",
+            "png",
+            "tiff"
           ]
         },
         {
@@ -230,6 +234,20 @@
                 "anotações",
                 "reference",
                 "silencioso"
+              ]
+            },
+            {
+              "code": "TODO",
+              "title": "Planner Semanal",
+              "description": "Abre o planner semanal para organizar tarefas, pendências de aprovação e notas. Para adicionar rapidamente uma tarefa no dia atual, digite a categoria seguida de hífen e da descrição, por exemplo: KONICA - Certificados.",
+              "keywords": [
+                "planner",
+                "tarefas",
+                "semana",
+                "todo",
+                "konica",
+                "gto",
+                "aprovação"
               ]
             },
             {
@@ -500,10 +518,22 @@
           "keywords": ["arquivo", "abrir pdf", "trimbox", "páginas"]
         },
         {
+          "code": "PHOTOSHOP",
+          "title": "Editar uma página no Photoshop",
+          "description": "Em Organizar Páginas, selecione uma página e use Abrir Photoshop para editar ou Criar Sangria 3mm para ampliar o fundo pelas quatro bordas. A sangria mantém intacta a área original, abre como TIFF CMYK a 300 dpi e, após ⌘S, retorna com TrimBox no formato original e MediaBox/BleedBox 6 mm maiores. A página passa a ser rasterizada; o PDF original permanece intacto até Salvar Como.",
+          "keywords": ["photoshop", "editar página", "sangria", "3mm", "tiff", "300 dpi", "trimbox", "bleedbox", "rasterizar"]
+        },
+        {
           "code": "SEM PDF",
           "title": "Estado inicial seguro",
           "description": "Antes de carregar um PDF, controles dependentes do documento permanecem desabilitados e em cinza. A prévia de ORG, GEO e IMP mostra a mesma mensagem discreta e centralizada: “Arraste um PDF para visualizar”.",
           "keywords": ["vazio", "desabilitado", "cinza", "arrastar"]
+        },
+        {
+          "code": "GEOMETRIA",
+          "title": "Formato e TrimBox",
+          "description": "Na aba GEO, o cartão Formato redimensiona juntos a página, a arte e os boxes. Com Permitir distorção marcado, ocupa exatamente a largura e a altura escolhidas; desmarcado, mantém a proporção e usa o maior tamanho que cabe no formato. O cartão TrimBox só altera o corte quando usado diretamente.",
+          "keywords": ["geometria", "formato", "trimbox", "tamanho", "distorção", "proporção", "limpeza"]
         },
         {
           "code": "PRÉVIA",

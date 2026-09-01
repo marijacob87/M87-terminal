@@ -62,6 +62,13 @@ class BoxSettings:
 
 
 @dataclass(frozen=True)
+class ArtworkFitSettings:
+    target: str = "trim"
+    margin_mm: float = 0.0
+    only_reduce: bool = True
+
+
+@dataclass(frozen=True)
 class CropMarkSettings:
     enabled: bool = False
     offset_mm: float = 3.0
@@ -75,6 +82,7 @@ class GeometrySettings:
     media: BoxSettings | None = None
     trim: BoxSettings | None = None
     rotation_degrees: int = 0
+    artwork_fit: ArtworkFitSettings | None = None
     remove_outside_trim: bool = False
     crop_marks: CropMarkSettings = field(default_factory=CropMarkSettings)
 
@@ -283,6 +291,74 @@ def _resize_format(pdf, page, settings: FormatSettings) -> None:
 
     annotations = page.obj.get("/Annots", ())
     for annotation in annotations:
+        if annotation.get("/Rect") is not None:
+            annotation.Rect = pikepdf.Array(_transform_rect(annotation.Rect, matrix))
+        if annotation.get("/QuadPoints") is not None:
+            annotation.QuadPoints = _transform_points(annotation.QuadPoints, matrix)
+
+
+def artwork_fit_geometry(
+    page: PageGeometry,
+    settings: ArtworkFitSettings,
+) -> tuple[BoxGeometry, float]:
+    if settings.target not in {"media", "trim"}:
+        raise GeometryError("O destino da arte deve ser MediaBox ou TrimBox.")
+    if settings.margin_mm < 0:
+        raise GeometryError("A margem da arte não pode ser negativa.")
+    target = page.trim if settings.target == "trim" else page.media
+    available_width = target.width_mm - 2 * settings.margin_mm
+    available_height = target.height_mm - 2 * settings.margin_mm
+    if available_width <= 0 or available_height <= 0:
+        raise GeometryError("A margem não pode ocupar todo o destino da arte.")
+    scale = min(
+        available_width / page.media.width_mm,
+        available_height / page.media.height_mm,
+    )
+    if settings.only_reduce:
+        scale = min(1.0, scale)
+    width = page.media.width_mm * scale
+    height = page.media.height_mm * scale
+    return BoxGeometry(
+        target.x_mm + (target.width_mm - width) / 2,
+        target.y_mm + (target.height_mm - height) / 2,
+        width,
+        height,
+    ), scale
+
+
+def _fit_artwork(pdf, page, settings: ArtworkFitSettings) -> None:
+    media = _box(page, "/MediaBox")
+    target = (
+        _box(page, "/TrimBox", media)
+        if settings.target == "trim"
+        else media
+    )
+    if settings.target not in {"media", "trim"}:
+        raise GeometryError("O destino da arte deve ser MediaBox ou TrimBox.")
+    if settings.margin_mm < 0:
+        raise GeometryError("A margem da arte não pode ser negativa.")
+    margin = settings.margin_mm * MM_TO_PT
+    available_width = target[2] - target[0] - 2 * margin
+    available_height = target[3] - target[1] - 2 * margin
+    if available_width <= 0 or available_height <= 0:
+        raise GeometryError("A margem não pode ocupar todo o destino da arte.")
+    source_width = media[2] - media[0]
+    source_height = media[3] - media[1]
+    scale = min(available_width / source_width, available_height / source_height)
+    if settings.only_reduce:
+        scale = min(1.0, scale)
+    target_center_x = (target[0] + target[2]) / 2
+    target_center_y = (target[1] + target[3]) / 2
+    source_center_x = (media[0] + media[2]) / 2
+    source_center_y = (media[1] + media[3]) / 2
+    matrix = (
+        scale,
+        scale,
+        target_center_x - source_center_x * scale,
+        target_center_y - source_center_y * scale,
+    )
+    _wrap_page_contents(pdf, page, matrix)
+    for annotation in page.obj.get("/Annots", ()):
         if annotation.get("/Rect") is not None:
             annotation.Rect = pikepdf.Array(_transform_rect(annotation.Rect, matrix))
         if annotation.get("/QuadPoints") is not None:
@@ -538,6 +614,8 @@ def apply_geometry(
                 normalize_page_rotation(pdf, page, settings.rotation_degrees)
                 if settings.format is not None:
                     _resize_format(pdf, page, settings.format)
+                if settings.artwork_fit is not None:
+                    _fit_artwork(pdf, page, settings.artwork_fit)
                 if settings.media is not None or settings.trim is not None:
                     _set_boxes(pdf, page, settings.media, settings.trim)
             if settings.remove_outside_trim:

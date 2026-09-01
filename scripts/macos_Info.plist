@@ -26,6 +26,8 @@
     <string>12.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>O M87 Terminal usa automação para selecionar e confirmar sessões abertas no AnyDesk.</string>
     <key>M87ProjectRoot</key>
     <string></string>
     <key>M87PythonExecutable</key>
